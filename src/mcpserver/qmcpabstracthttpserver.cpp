@@ -13,6 +13,7 @@ public:
     void handleNewConnection();
     void handleDisconnected(QTcpSocket *socket);
     void parseHttpRequest(QTcpSocket *socket);
+    void resetParseData(QTcpSocket *socket, const QByteArray &remainingData = {});
     void sendHttpResponse(QTcpSocket *socket, const QByteArray &data,
                           const QString &contentType = QStringLiteral("text/plain"),
                           int statusCode = 200,
@@ -28,8 +29,8 @@ public:
         QNetworkRequest request;
         int indexOfMethod = -1;
         qint64 contentLength = -1;  // Store expected content length
-        qint64 receivedLength = 0;  // Track received data size
         bool responseDeferred = false;
+        bool responseCompleted = false;
     };
 
     QMap<QTcpSocket*, ParseData> dataMap;
@@ -75,6 +76,15 @@ void QMcpAbstractHttpServer::Private::handleDisconnected(QTcpSocket *socket)
     socket->deleteLater();
 }
 
+void QMcpAbstractHttpServer::Private::resetParseData(QTcpSocket *socket, const QByteArray &remainingData)
+{
+    ParseData next;
+    next.data = remainingData;
+    dataMap.insert(socket, next);
+    if (!remainingData.isEmpty())
+        parseHttpRequest(socket);
+}
+
 void QMcpAbstractHttpServer::Private::parseHttpRequest(QTcpSocket *socket)
 {
     const auto mo = q->metaObject();
@@ -82,9 +92,12 @@ void QMcpAbstractHttpServer::Private::parseHttpRequest(QTcpSocket *socket)
     ParseData &data = dataMap[socket];
     QByteArray newData = socket->readAll();
     data.data.append(newData);
-    data.receivedLength += newData.size();
 
     if (!data.request.url().isValid()) {
+        const int headersEnd = data.data.indexOf("\r\n\r\n");
+        if (headersEnd < 0)
+            return;
+
         int cr = data.data.indexOf('\r');
         int lf = data.data.indexOf('\n');
         if (lf < 0) {
@@ -106,7 +119,7 @@ void QMcpAbstractHttpServer::Private::parseHttpRequest(QTcpSocket *socket)
         // parse headers
         QHttpHeaders headers;
         int prevLf = 0;
-        while (prevLf < data.data.length()) {
+        while (prevLf < headersEnd) {
             prevLf = lf + 1;
             cr = data.data.indexOf('\r', prevLf);
             lf = data.data.indexOf('\n', prevLf);
@@ -146,7 +159,7 @@ void QMcpAbstractHttpServer::Private::parseHttpRequest(QTcpSocket *socket)
         data.request = QNetworkRequest(url);
         data.request.setAttribute(QNetworkRequest::User, QUuid::createUuid());
         data.request.setHeaders(headers);
-        data.data = data.data.remove(0, prevLf + 2);
+        data.data.remove(0, headersEnd + 4);
 
         QByteArray slotName = method.toLower();
         const auto pathElements = url.path().split("/"_L1, Qt::SkipEmptyParts);
@@ -175,7 +188,7 @@ void QMcpAbstractHttpServer::Private::parseHttpRequest(QTcpSocket *socket)
     }
 
     // Check if we have received all expected data
-    if (data.contentLength >= 0 && data.receivedLength < data.contentLength) {
+    if (data.contentLength >= 0 && data.data.size() < data.contentLength) {
         return;  // Wait for more data
     }
 
@@ -183,6 +196,9 @@ void QMcpAbstractHttpServer::Private::parseHttpRequest(QTcpSocket *socket)
         sendHttpResponse(socket, "Not Found"_ba, QStringLiteral("text/plain"), 404);
         return;
     }
+
+    const QByteArray requestBody = data.contentLength >= 0 ? data.data.left(data.contentLength) : data.data;
+    const QByteArray remainingData = data.contentLength >= 0 ? data.data.mid(data.contentLength) : QByteArray();
 
     auto mm = mo->method(data.indexOfMethod);
     QByteArray ret;
@@ -205,9 +221,8 @@ void QMcpAbstractHttpServer::Private::parseHttpRequest(QTcpSocket *socket)
                   , Qt::DirectConnection
                   , Q_RETURN_ARG(QByteArray, ret)
                   , Q_ARG(QNetworkRequest, data.request)
-                  , Q_ARG(QByteArray, data.data)
+                  , Q_ARG(QByteArray, requestBody)
                   );
-        data.data.clear();
         break;
     default:
         qFatal();
@@ -219,8 +234,8 @@ void QMcpAbstractHttpServer::Private::parseHttpRequest(QTcpSocket *socket)
         socket->write(ret);
     }
 
-    if (!data.responseDeferred)
-        dataMap.insert(socket, ParseData());
+    if (!data.responseDeferred || data.responseCompleted)
+        resetParseData(socket, remainingData);
 }
 
 void QMcpAbstractHttpServer::Private::sendHttpResponse(QTcpSocket *socket, const QByteArray &data,
@@ -366,7 +381,7 @@ void QMcpAbstractHttpServer::sendHttpResponse(const QUuid &id,
             continue;
 
         d->sendHttpResponse(socket, data, contentType, statusCode, headers);
-        d->dataMap.insert(socket, Private::ParseData());
+        d->dataMap[socket].responseCompleted = true;
         return;
     }
 

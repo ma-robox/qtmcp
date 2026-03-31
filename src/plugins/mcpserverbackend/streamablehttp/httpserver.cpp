@@ -226,12 +226,22 @@ QByteArray StreamableHttpServer::get(const QNetworkRequest &request)
         return {};
     }
 
-    d->sessions[sessionId].sseOpen = true;
-    d->sessions[sessionId].sseConnectionId = sseId;
+    auto &sessionState = d->sessions[sessionId];
+    if (sessionState.sseOpen && !sessionState.sseConnectionId.isNull()
+            && sessionState.sseConnectionId != sseId
+            && hasSseConnection(sessionState.sseConnectionId)) {
+        qCInfo(lcQMcpServerStreamableHttpTransport)
+                << "Replacing existing SSE stream for session" << sessionId
+                << "oldConnection" << sessionState.sseConnectionId
+                << "newConnection" << sseId;
+        closeSseConnection(sessionState.sseConnectionId);
+    }
+
+    sessionState.sseOpen = true;
+    sessionState.sseConnectionId = sseId;
     qCInfo(lcQMcpServerStreamableHttpTransport)
             << "Opened SSE stream for session" << sessionId << "connection" << sseId;
 
-    auto &sessionState = d->sessions[sessionId];
     if (!sessionState.queuedMessages.isEmpty()) {
         qCInfo(lcQMcpServerStreamableHttpTransport)
                 << "Flushing queued server-initiated messages for session" << sessionId
