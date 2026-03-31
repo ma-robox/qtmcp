@@ -57,6 +57,14 @@ public slots:
     virtual void start(const QString &server) = 0;
 
     /*!
+        Requests backend shutdown.
+
+        Backends may implement an immediate shutdown or a transport-specific
+        graceful close. When shutdown is complete, they should emit finished().
+    */
+    virtual void shutdown();
+
+    /*!
         Sends a raw JSON object to a specific client session.
         Must be implemented by backend classes.
         

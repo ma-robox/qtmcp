@@ -66,3 +66,11 @@ void HttpServer::send(const QUuid &session, const QJsonObject &object)
 {
     sendSseEvent(session, QJsonDocument(object).toJson(QJsonDocument::Compact), "message"_L1);
 }
+
+void HttpServer::shutdown()
+{
+    const auto sessions = d->sessions.values();
+    for (const auto &sessionId : sessions)
+        closeSseConnection(sessionId);
+    d->sessions.clear();
+}

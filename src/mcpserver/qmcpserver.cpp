@@ -3,9 +3,12 @@
 
 #include "qmcpserver.h"
 #include "qmcpserversession.h"
+#include <QtCore/QCoreApplication>
+#include <QtCore/QEventLoop>
 #include <QtCore/QMetaType>
 #include <QtCore/QPromise>
 #include <QtCore/QLoggingCategory>
+#include <QtCore/QThread>
 #include <QtCore/private/qfactoryloader_p.h>
 #include <QtCore/qjsonobject.h>
 #ifdef QT_GUI_LIB
@@ -47,6 +50,9 @@ public:
     QHash<QString, std::function<QJsonValue(const QUuid &, const QJsonObject&, QMcpJSONRPCErrorError *)>> requestHandlers;
     QMultiHash<QString, std::function<void(const QUuid &, const QJsonObject&)>> notificationHandlers;
     QHash<QUuid, QMcpServerSession *> sessions;
+    bool shutdownRequested = false;
+    bool shutdownCompleted = false;
+    int activeAsyncOperations = 0;
     QHash<QObject *, QHash<QString, QString>> toolSets;
 #ifdef QT_GUI_LIB
     QHash<QAction *, QString> actions;
@@ -77,7 +83,10 @@ QMcpServer::Private::Private(const QString &type, QMcpServer *parent)
 
     backend->setParent(q);
     connect(backend, &QMcpServerBackendInterface::started, q, &QMcpServer::started);
-    connect(backend, &QMcpServerBackendInterface::finished, q, &QMcpServer::finished);
+    connect(backend, &QMcpServerBackendInterface::finished, q, [this]() {
+        shutdownCompleted = true;
+        emit q->finished();
+    });
     connect(backend, &QMcpServerBackendInterface::newSessionStarted, q, [this](const QUuid &sessionId) {
         auto session = new QMcpServerSession(sessionId, q);
 
@@ -162,6 +171,18 @@ QMcpServer::Private::Private(const QString &type, QMcpServer *parent)
             // request
             if (object.contains("id"_L1)) {
                 const auto id = object.value("id"_L1);
+                if (shutdownRequested) {
+                    QMcpJSONRPCError response;
+                    response.setId(id.toVariant());
+                    auto error = response.error();
+                    error.setMessage("Server is shutting down"_L1);
+                    response.setError(error);
+                    auto sessionObj = sessions.value(session);
+                    q->send(session, response.toJsonObject(sessionObj ?
+                            sessionObj->protocolVersion() :
+                            protocolVersion));
+                    return;
+                }
                 if (requestHandlers.contains(method)) {
                     const auto handler = requestHandlers.value(method);
                     QMcpJSONRPCErrorError error;
@@ -221,6 +242,8 @@ QMcpServer::Private::Private(const QString &type, QMcpServer *parent)
             }
 
             // notification
+            if (shutdownRequested)
+                return;
             if (notificationHandlers.contains(method)) {
                 const auto handlers = notificationHandlers.values(method);
                 for (auto &handler : handlers) {
@@ -437,6 +460,25 @@ void QMcpServer::start(const QString &args)
     d->backend->start(args);
 }
 
+void QMcpServer::shutdown()
+{
+    if (!d->backend || d->shutdownRequested)
+        return;
+
+    d->shutdownRequested = true;
+    completeShutdownIfPossible();
+}
+
+void QMcpServer::waitShutdownCompleted()
+{
+    if (!d->backend || d->shutdownCompleted)
+        return;
+
+    QEventLoop loop;
+    connect(this, &QMcpServer::finished, &loop, &QEventLoop::quit);
+    loop.exec();
+}
+
 void QMcpServer::registerToolSet(QObject *toolSet, const QHash<QString, QString> &descriptions)
 {
     d->toolSets.insert(toolSet, descriptions);
@@ -453,6 +495,39 @@ void QMcpServer::unregisterToolSet(QObject *toolSet)
         session->unregisterToolSet(toolSet);
     }
     d->toolSets.remove(toolSet);
+}
+
+void QMcpServer::beginAsyncOperation()
+{
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, &QMcpServer::beginAsyncOperation, Qt::QueuedConnection);
+        return;
+    }
+    ++d->activeAsyncOperations;
+}
+
+void QMcpServer::endAsyncOperation()
+{
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, &QMcpServer::endAsyncOperation, Qt::QueuedConnection);
+        return;
+    }
+    if (d->activeAsyncOperations > 0)
+        --d->activeAsyncOperations;
+    completeShutdownIfPossible();
+}
+
+void QMcpServer::completeShutdownIfPossible()
+{
+    if (!d->shutdownRequested || d->shutdownCompleted || !d->backend)
+        return;
+    if (d->activeAsyncOperations > 0)
+        return;
+    d->backend->shutdown();
+    if (!d->shutdownCompleted) {
+        d->shutdownCompleted = true;
+        emit finished();
+    }
 }
 
 #ifdef QT_GUI_LIB

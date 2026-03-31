@@ -65,6 +65,13 @@ void QMcpServerSse::start(const QString &server)
     emit started();
 }
 
+void QMcpServerSse::shutdown()
+{
+    d->tcpServer.close();
+    d->httpServer.shutdown();
+    emit finished();
+}
+
 void QMcpServerSse::send(const QUuid &session, const QJsonObject &object)
 {
     qCDebug(lcQMcpServerSsePlugin) << "Sending message:" << session;

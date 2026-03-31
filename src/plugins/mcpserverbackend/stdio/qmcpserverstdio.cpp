@@ -26,6 +26,7 @@ class QMcpServerStdio::Private
 {
 public:
     Private(QMcpServerStdio *parent);
+    void shutdown();
 
 private:
     void readData(QSocketDescriptor socket, QSocketNotifier::Type activationEvent);
@@ -106,6 +107,13 @@ void QMcpServerStdio::Private::readData(QSocketDescriptor socket, QSocketNotifie
     }
 }
 
+void QMcpServerStdio::Private::shutdown()
+{
+    if (notifier)
+        notifier->setEnabled(false);
+    emit q->finished();
+}
+
 QMcpServerStdio::QMcpServerStdio(QObject *parent)
     : QMcpServerBackendInterface(parent)
     , d(new Private(this))
@@ -116,6 +124,11 @@ QMcpServerStdio::~QMcpServerStdio() = default;
 void QMcpServerStdio::start(const QString &server)
 {
     Q_UNUSED(server);
+}
+
+void QMcpServerStdio::shutdown()
+{
+    d->shutdown();
 }
 
 void QMcpServerStdio::send(const QUuid &session, const QJsonObject &object)

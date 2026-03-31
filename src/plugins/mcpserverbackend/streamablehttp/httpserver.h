@@ -21,6 +21,7 @@ public:
 public slots:
     void send(const QUuid &session, const QJsonObject &object);
     void closeSession(const QUuid &session);
+    void shutdown();
 
 signals:
     void newSession(const QUuid &session);

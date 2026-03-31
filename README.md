@@ -9,6 +9,7 @@ Qt MCP is a Qt-based implementation of the Model Context Protocol, providing a r
 - [Features](#features)
 - [Building from Source](#building-from-source)
 - [Getting Started](#getting-started)
+- [Library API](#library-api)
 - [Development](#development)
 - [Testing](#testing)
 - [Protocol Specification](#protocol-specification)
@@ -126,6 +127,12 @@ cmake --build . --parallel
 ```bash
 ctest --output-on-failure
 ```
+
+## Library API
+
+For library consumers, see the dedicated API guide:
+
+- [Qt MCP Library API](docs/library-api.md)
 
 ## Getting Started
 

@@ -562,3 +562,20 @@ void StreamableHttpServer::closeSession(const QUuid &session)
 
     d->sessions.remove(session);
 }
+
+void StreamableHttpServer::shutdown()
+{
+    const auto pendingBatchIds = d->pendingBatches.keys();
+    for (const auto &batchId : pendingBatchIds) {
+        sendHttpResponse(batchId,
+                         jsonBody(jsonRpcError(-32000, "Server shutting down"_L1)),
+                         kJsonContentType,
+                         503);
+    }
+    d->pendingBatches.clear();
+    d->pendingResponses.clear();
+
+    const auto sessionIds = d->sessions.keys();
+    for (const auto &sessionId : sessionIds)
+        closeSession(sessionId);
+}

@@ -7,6 +7,7 @@
 #include <QtCore/QJsonArray>
 #include <QtCore/QMultiHash>
 #include <QtCore/QPromise>
+#include <QtCore/QSharedPointer>
 #include <QtCore/QTimer>
 #ifdef QT_GUI_LIB
 #include <QtGui/QAction>
@@ -854,13 +855,21 @@ QFuture<QMcpCallToolResult> QMcpServerSession::callToolAsync(
 
             // Set up progress monitoring if progressToken is provided
             if (progressToken.isValid() && !progressToken.isNull()) {
-                auto *watcher = new QFutureWatcher<QList<QMcpCallToolResultContent>>(this);
+                auto *watcher = new QFutureWatcher<QList<QMcpCallToolResultContent>>();
                 auto *server = qobject_cast<QMcpServer *>(parent());
+                struct ProgressState {
+                    int lastProgress = -1;
+                    int lastTotal = -1;
+                };
+                auto state = QSharedPointer<ProgressState>::create();
 
                 connect(watcher, &QFutureWatcherBase::progressValueChanged, this,
-                        [this, server, progressToken](int value) {
+                        [this, server, progressToken, state](int value) {
                     if (!server)
                         return;
+                    if (state->lastProgress == value)
+                        return;
+                    state->lastProgress = value;
                     QMcpProgressNotificationParams params;
                     params.setProgressToken(progressToken);
                     params.setProgress(value);
@@ -870,10 +879,15 @@ QFuture<QMcpCallToolResult> QMcpServerSession::callToolAsync(
                 });
 
                 connect(watcher, &QFutureWatcherBase::progressRangeChanged, this,
-                        [this, server, progressToken](int min, int max) {
+                        [this, server, progressToken, state](int min, int max) {
                     Q_UNUSED(min);
                     if (!server)
                         return;
+                    if (max <= 0)
+                        return;
+                    if (state->lastTotal == max)
+                        return;
+                    state->lastTotal = max;
                     QMcpProgressNotificationParams params;
                     params.setProgressToken(progressToken);
                     params.setProgress(0);

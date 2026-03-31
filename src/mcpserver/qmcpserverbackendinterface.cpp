@@ -38,4 +38,8 @@ void QMcpServerBackendInterface::request(const QUuid &session, const QJsonObject
     }
 }
 
+void QMcpServerBackendInterface::shutdown()
+{
+}
+
 QT_END_NAMESPACE

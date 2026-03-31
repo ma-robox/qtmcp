@@ -6,6 +6,7 @@
 
 #include <QtCore/QFuture>
 #include <QtCore/QObject>
+#include <QtCore/QEventLoop>
 #include <QtMcpCommon/QMcpJSONRPCErrorError>
 #include <QtMcpCommon/QMcpJSONRPCResponse>
 #include <QtMcpCommon/QMcpNotification>
@@ -255,6 +256,7 @@ public:
 
             if constexpr (is_future<Result>::value) {
                 // For async handlers
+                beginAsyncOperation();
                 auto future = handler(session, req, error);
 
                 // Get the request ID from the JSON object
@@ -267,6 +269,7 @@ public:
                     auto object = response.toJsonObject(versionToUse);
                     object.insert("result"_L1, result.toJsonObject(versionToUse));
                     send(session, object);
+                    endAsyncOperation();
                 });
 
                 // Return empty value since we'll send response later
@@ -382,6 +385,8 @@ public slots:
         \param args Command-line style arguments to pass to the backend (e.g., "--log-level=debug")
     */
     void start(const QString &args = QString());
+    void shutdown();
+    void waitShutdownCompleted();
 
     void registerToolSet(QObject *toolSet, const QHash<QString, QString> &descriptions = {});
     void unregisterToolSet(QObject *toolSet);
@@ -445,7 +450,10 @@ signals:
     void result(const QUuid &session, const QJsonObject &result);
 
 private:
-    /*!
+    void beginAsyncOperation();
+    void endAsyncOperation();
+    void completeShutdownIfPossible();
+    /*! 
         \internal
         Determines the protocol version to use for a given session.
         

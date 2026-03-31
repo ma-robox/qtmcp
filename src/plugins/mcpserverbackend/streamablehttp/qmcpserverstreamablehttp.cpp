@@ -103,6 +103,13 @@ void QMcpServerStreamableHttp::start(const QString &server)
     emit started();
 }
 
+void QMcpServerStreamableHttp::shutdown()
+{
+    d->tcpServer.close();
+    d->httpServer.shutdown();
+    emit finished();
+}
+
 void QMcpServerStreamableHttp::send(const QUuid &session, const QJsonObject &object)
 {
     d->httpServer.send(session, object);
