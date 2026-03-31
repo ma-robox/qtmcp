@@ -34,3 +34,7 @@ qt_internal_extend_target(McpServer CONDITION TARGET Qt::Gui
     PUBLIC_LIBRARIES
         Qt::Gui
 )
+
+target_compile_definitions(McpServer PRIVATE
+    $<$<BOOL:${QT_MCP_CORE_VERBOSE_DIAGNOSTICS}>:QT_MCP_CORE_VERBOSE_DIAGNOSTICS>
+)

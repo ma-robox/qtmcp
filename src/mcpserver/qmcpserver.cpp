@@ -18,6 +18,10 @@ QT_BEGIN_NAMESPACE
 
 Q_LOGGING_CATEGORY(lcQMcpServerCore, "qt.mcpserver.core")
 
+#ifdef QT_MCP_CORE_VERBOSE_DIAGNOSTICS
+#define QT_MCP_CORE_VERBOSE 1
+#endif
+
 Q_GLOBAL_STATIC_WITH_ARGS(QFactoryLoader, backendLoader,
                           (QMcpServerBackendPluginFactoryInterface_iid, "/mcpserverbackend"_L1, Qt::CaseInsensitive))
 
@@ -120,6 +124,7 @@ QMcpServer::Private::Private(const QString &type, QMcpServer *parent)
         emit q->newSession(session);
     });
     connect(backend, &QMcpServerBackendInterface::received, q, [this](const QUuid &session, const QJsonObject &object) {
+#ifdef QT_MCP_CORE_VERBOSE
         if (object.contains("method"_L1)) {
             qCInfo(lcQMcpServerCore).noquote()
                     << "Received MCP message"
@@ -132,6 +137,7 @@ QMcpServer::Private::Private(const QString &type, QMcpServer *parent)
                     << "session=" << session
                     << "id=" << object.value("id"_L1);
         }
+#endif
 
         // response
         if (object.contains("id"_L1)) {
@@ -165,11 +171,13 @@ QMcpServer::Private::Private(const QString &type, QMcpServer *parent)
                         response.setId(id);
                         response.setError(error);
                         auto sessionObj = sessions.value(session);
+#ifdef QT_MCP_CORE_VERBOSE
                         qCInfo(lcQMcpServerCore).noquote()
                                 << "Sending MCP error response"
                                 << "session=" << session
                                 << "method=" << method
                                 << "id=" << id;
+#endif
                         q->send(session, response.toJsonObject(sessionObj ?
                                 sessionObj->protocolVersion() :
                                 protocolVersion));
@@ -181,11 +189,13 @@ QMcpServer::Private::Private(const QString &type, QMcpServer *parent)
                                      sessionObj->protocolVersion() :
                                      protocolVersion);
                         object.insert("result"_L1, result.toObject());
+#ifdef QT_MCP_CORE_VERBOSE
                         qCInfo(lcQMcpServerCore).noquote()
                                 << "Sending MCP success response"
                                 << "session=" << session
                                 << "method=" << method
                                 << "id=" << id;
+#endif
                         q->send(session, object);
                     }
                 } else {
@@ -196,11 +206,13 @@ QMcpServer::Private::Private(const QString &type, QMcpServer *parent)
                     error.setMessage("Server doesn't handle the request"_L1);
                     response.setError(error);
                     auto sessionObj = sessions.value(session);
+#ifdef QT_MCP_CORE_VERBOSE
                     qCInfo(lcQMcpServerCore).noquote()
                             << "Sending MCP unhandled-method error"
                             << "session=" << session
                             << "method=" << method
                             << "id=" << id;
+#endif
                     q->send(session, response.toJsonObject(sessionObj ?
                             sessionObj->protocolVersion() :
                             protocolVersion));

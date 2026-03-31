@@ -11,3 +11,7 @@ qt_internal_add_plugin(QMcpServerStreamableHttpPlugin
         Qt::McpServer
         Qt::Network
 )
+
+target_compile_definitions(QMcpServerStreamableHttpPlugin PRIVATE
+    $<$<BOOL:${QT_MCP_STREAMABLEHTTP_VERBOSE_DIAGNOSTICS}>:QT_MCP_STREAMABLEHTTP_VERBOSE_DIAGNOSTICS>
+)

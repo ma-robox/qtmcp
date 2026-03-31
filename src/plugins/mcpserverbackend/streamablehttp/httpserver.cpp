@@ -10,6 +10,10 @@
 
 Q_LOGGING_CATEGORY(lcQMcpServerStreamableHttpTransport, "qt.mcpserver.plugins.backend.streamablehttp.transport")
 
+#ifdef QT_MCP_STREAMABLEHTTP_VERBOSE_DIAGNOSTICS
+#define QT_MCP_STREAMABLEHTTP_VERBOSE 1
+#endif
+
 namespace {
 
 constexpr auto kJsonContentType = "application/json";
@@ -180,8 +184,10 @@ QString StreamableHttpServer::endpointPath() const
 
 QByteArray StreamableHttpServer::get(const QNetworkRequest &request)
 {
+#ifdef QT_MCP_STREAMABLEHTTP_VERBOSE
     qCInfo(lcQMcpServerStreamableHttpTransport).noquote()
             << "HTTP GET /mcp" << requestSummary(request);
+#endif
 
     const auto deferredId = deferHttpResponse(request);
     if (deferredId.isNull())
@@ -208,8 +214,10 @@ QByteArray StreamableHttpServer::get(const QNetworkRequest &request)
         // A client may probe GET /mcp before initialize or while negotiating transport.
         // Returning 405 keeps us compliant with the Streamable HTTP transport when no
         // session-bound SSE stream can be opened yet.
+#ifdef QT_MCP_STREAMABLEHTTP_VERBOSE
         qCInfo(lcQMcpServerStreamableHttpTransport)
                 << "Rejecting pre-session GET with 405" << request.url();
+#endif
         sendHttpResponse(deferredId,
                          QByteArray(),
                          kJsonContentType,
@@ -230,10 +238,12 @@ QByteArray StreamableHttpServer::get(const QNetworkRequest &request)
     if (sessionState.sseOpen && !sessionState.sseConnectionId.isNull()
             && sessionState.sseConnectionId != sseId
             && hasSseConnection(sessionState.sseConnectionId)) {
+#ifdef QT_MCP_STREAMABLEHTTP_VERBOSE
         qCInfo(lcQMcpServerStreamableHttpTransport)
                 << "Replacing existing SSE stream for session" << sessionId
                 << "oldConnection" << sessionState.sseConnectionId
                 << "newConnection" << sseId;
+#endif
         closeSseConnection(sessionState.sseConnectionId);
     }
 
@@ -243,16 +253,20 @@ QByteArray StreamableHttpServer::get(const QNetworkRequest &request)
             << "Opened SSE stream for session" << sessionId << "connection" << sseId;
 
     if (!sessionState.queuedMessages.isEmpty()) {
+#ifdef QT_MCP_STREAMABLEHTTP_VERBOSE
         qCInfo(lcQMcpServerStreamableHttpTransport)
                 << "Flushing queued server-initiated messages for session" << sessionId
                 << "count" << sessionState.queuedMessages.size();
+#endif
         const auto queuedMessages = sessionState.queuedMessages;
         sessionState.queuedMessages.clear();
         for (const auto &queuedObject : queuedMessages) {
+#ifdef QT_MCP_STREAMABLEHTTP_VERBOSE
             qCInfo(lcQMcpServerStreamableHttpTransport).noquote()
                     << "Flushed queued SSE message"
                     << "session=" << sessionId
                     << "payload=" << QString::fromUtf8(jsonBody(queuedObject));
+#endif
             sendSseEvent(sseId, jsonBody(queuedObject), "message"_L1);
         }
     }
@@ -262,9 +276,11 @@ QByteArray StreamableHttpServer::get(const QNetworkRequest &request)
 
 QByteArray StreamableHttpServer::post(const QNetworkRequest &request, const QByteArray &body)
 {
+#ifdef QT_MCP_STREAMABLEHTTP_VERBOSE
     qCInfo(lcQMcpServerStreamableHttpTransport).noquote()
             << "HTTP POST /mcp" << requestSummary(request)
             << "body=" << QString::fromUtf8(body);
+#endif
 
     const auto deferredId = deferHttpResponse(request);
     if (deferredId.isNull())
@@ -384,9 +400,11 @@ QByteArray StreamableHttpServer::post(const QNetworkRequest &request, const QByt
     }
 
     if (!hasRequests && hasNotificationsOrResponsesOnly) {
+#ifdef QT_MCP_STREAMABLEHTTP_VERBOSE
         qCInfo(lcQMcpServerStreamableHttpTransport)
                 << "Dispatching notification/response-only POST for session" << sessionId
                 << "messages" << messages.size();
+#endif
         sendHttpResponse(deferredId,
                          QByteArray(),
                          kJsonContentType,
@@ -401,10 +419,12 @@ QByteArray StreamableHttpServer::post(const QNetworkRequest &request, const QByt
     d->pendingBatches.insert(deferredId, pendingBatch);
     for (const auto &key : requestKeys)
         d->pendingResponses[sessionId].insert(key, { deferredId, sessionId });
+#ifdef QT_MCP_STREAMABLEHTTP_VERBOSE
     qCInfo(lcQMcpServerStreamableHttpTransport)
             << "Dispatching request POST for session" << sessionId
             << "messages" << messages.size()
             << "requestIds" << requestKeys;
+#endif
 
     for (const auto &object : std::as_const(messages))
         emit received(sessionId, object);
@@ -455,11 +475,13 @@ void StreamableHttpServer::send(const QUuid &session, const QJsonObject &object)
             const auto pending = pendingById.take(key);
             auto &batch = d->pendingBatches[pending.batchId];
             batch.responses.insert(key, object);
+#ifdef QT_MCP_STREAMABLEHTTP_VERBOSE
             qCInfo(lcQMcpServerStreamableHttpTransport).noquote()
                     << "Matched JSON-RPC response for pending HTTP batch"
                     << "session=" << session
                     << "id=" << object.value("id"_L1)
                     << "payload=" << QString::fromUtf8(jsonBody(object));
+#endif
 
             if (batch.responses.size() == batch.responseOrder.size()) {
                 QJsonArray responseArray;
@@ -488,10 +510,12 @@ void StreamableHttpServer::send(const QUuid &session, const QJsonObject &object)
     if (!d->sessions.contains(session) || !d->sessions.value(session).sseOpen) {
         if (d->sessions.contains(session)) {
             d->sessions[session].queuedMessages.append(object);
+#ifdef QT_MCP_STREAMABLEHTTP_VERBOSE
             qCInfo(lcQMcpServerStreamableHttpTransport).noquote()
                     << "Queueing server-initiated message until SSE opens"
                     << "session=" << session
                     << "payload=" << QString::fromUtf8(jsonBody(object));
+#endif
             return;
         }
 

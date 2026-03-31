@@ -11,6 +11,9 @@ project(QtMcp
     LANGUAGES CXX C
 )
 
+option(QT_MCP_CORE_VERBOSE_DIAGNOSTICS "Enable verbose core MCP diagnostics" OFF)
+option(QT_MCP_STREAMABLEHTTP_VERBOSE_DIAGNOSTICS "Enable verbose Streamable HTTP MCP diagnostics" OFF)
+
 find_package(Qt6 ${PROJECT_VERSION} CONFIG REQUIRED COMPONENTS
     BuildInternals
     Core
