@@ -112,6 +112,9 @@ void tst_QMcpServerSession::testProtocolVersion()
     // Change back to default version
     m_session->setProtocolVersion(QtMcp::ProtocolVersion::v2025_03_26);
     QCOMPARE(m_session->protocolVersion(), QtMcp::ProtocolVersion::v2025_03_26);
+
+    m_session->setProtocolVersion(QtMcp::ProtocolVersion::v2025_06_18);
+    QCOMPARE(m_session->protocolVersion(), QtMcp::ProtocolVersion::v2025_06_18);
 }
 
 void tst_QMcpServerSession::testProtocolVersionValidation_data()
@@ -120,6 +123,7 @@ void tst_QMcpServerSession::testProtocolVersionValidation_data()
     QTest::addColumn<bool>("isValid");
 
     QTest::newRow("2025-03-26") << "2025-03-26" << true;
+    QTest::newRow("2025-06-18") << "2025-06-18" << true;
     QTest::newRow("2024-11-05") << "2024-11-05" << true;
     QTest::newRow("invalid date format") << "2025/03/26" << false;
     QTest::newRow("future version") << "2026-01-01" << false;

@@ -4,6 +4,7 @@
 #include <QtCore/QObject>
 #include <QtCore/QUuid>
 #include <QtMcpServer/qmcpserverglobal.h>
+#include <QtNetwork/QHttpHeaders>
 #include <QtNetwork/QNetworkRequest>
 
 QT_BEGIN_NAMESPACE
@@ -61,6 +62,32 @@ protected:
     QUuid registerSseRequest(const QNetworkRequest &request);
 
     /*!
+        Marks an HTTP request for deferred completion and returns its identifier.
+
+        Subclasses can use this for transports where the HTTP response becomes available only
+        after the request has been dispatched through higher-level protocol handlers.
+
+        \param request The HTTP request being processed
+        \return UUID of the pending HTTP request, or a null UUID if the request is unknown
+    */
+    QUuid deferHttpResponse(const QNetworkRequest &request);
+
+    /*!
+        Sends an HTTP response for a deferred request.
+
+        \param id UUID of the deferred HTTP request
+        \param data Response body
+        \param contentType Value for the Content-Type header
+        \param statusCode HTTP status code
+        \param headers Additional HTTP headers
+    */
+    void sendHttpResponse(const QUuid &id,
+                          const QByteArray &data,
+                          const QString &contentType = QStringLiteral("text/plain"),
+                          int statusCode = 200,
+                          const QHttpHeaders &headers = {});
+
+    /*!
         Sends an SSE event to a specific client.
         
         \param id UUID of the SSE connection
@@ -75,6 +102,14 @@ protected:
         \param id UUID of the SSE connection to close
     */
     void closeSseConnection(const QUuid &id);
+
+    /*!
+        Returns whether an SSE connection is currently registered.
+
+        \param id UUID of the SSE connection
+        \return true if the connection is registered, false otherwise
+    */
+    bool hasSseConnection(const QUuid &id) const;
 
 private:
     class Private;

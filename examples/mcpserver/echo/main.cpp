@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
     parser.addVersionOption();
 
     QCommandLineOption backendOption(QStringList() << "b" << "backend",
-                                   "Backend to use (stdio/sse).",
+                                   "Backend to use (stdio/sse/streamablehttp).",
                                    "backend", "stdio");
     parser.addOption(backendOption);
 
@@ -44,14 +44,20 @@ int main(int argc, char *argv[])
                                    "address", "127.0.0.1:8000");
     parser.addOption(addressOption);
 
+    QCommandLineOption pathOption(QStringList() << "p" << "path",
+                                  "HTTP endpoint path for streamablehttp backend.",
+                                  "path", "/mcp");
+    parser.addOption(pathOption);
+
     parser.process(app);
 
     const QString backend = parser.value(backendOption);
     const QString address = parser.value(addressOption);
+    const QString path = parser.value(pathOption);
 
     McpServer server(backend);
     QObject::connect(&server, &QMcpServer::finished, &app, &QCoreApplication::quit);
-    server.start(address);
+    server.start(backend == "streamablehttp"_L1 ? address + path : address);
 
     return app.exec();
 }

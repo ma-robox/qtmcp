@@ -161,6 +161,7 @@ client.callTool("echo", args);
 Located in `examples/mcpserver/echo/`, this example demonstrates:
 - Basic MCP server implementation
 - Standard input/output communication
+- Streamable HTTP transport on `/mcp`
 - Simple request-response pattern
 - Resource template usage
 
@@ -197,6 +198,33 @@ cmake --build . --parallel
 ```
 
 The example executables will be available in the build directory under their respective paths.
+
+### Streamable HTTP Example
+
+The echo server can be started with the modern MCP Streamable HTTP transport:
+
+```bash
+./echo --backend streamablehttp --address 127.0.0.1:8000 --path /mcp
+```
+
+This exposes:
+
+- `POST /mcp` for JSON-RPC requests with `Content-Type: application/json`
+- `GET /mcp` with `Accept: text/event-stream` for server-initiated streaming
+- `Mcp-Session-Id` response/request header for session continuity
+
+Example Codex configuration:
+
+```toml
+[mcp_servers.echo]
+url = "http://127.0.0.1:8000/mcp"
+```
+
+Notes:
+
+- Codex supports Streamable HTTP MCP servers, but this backend currently has partial interoperability only.
+- The transport now responds with `405 Method Not Allowed` to `GET /mcp` before session initialization, which is friendlier to MCP clients that probe the endpoint before sending `initialize`.
+- Full Streamable HTTP compatibility still requires batch JSON-RPC POST handling and proper delayed HTTP responses for async server results. A simple `curl` flow with single JSON-RPC requests can succeed even when a stricter MCP client still refuses to surface tools.
 
 ## Development
 

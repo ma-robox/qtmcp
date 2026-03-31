@@ -5,6 +5,7 @@
 #include "qmcpserversession.h"
 #include <QtCore/QMetaType>
 #include <QtCore/QPromise>
+#include <QtCore/QLoggingCategory>
 #include <QtCore/private/qfactoryloader_p.h>
 #include <QtCore/qjsonobject.h>
 #ifdef QT_GUI_LIB
@@ -14,6 +15,8 @@
 #include <QtMcpServer/qmcpserverbackendinterface.h>
 #include <QtMcpServer/qmcpserverbackendplugin.h>
 QT_BEGIN_NAMESPACE
+
+Q_LOGGING_CATEGORY(lcQMcpServerCore, "qt.mcpserver.core")
 
 Q_GLOBAL_STATIC_WITH_ARGS(QFactoryLoader, backendLoader,
                           (QMcpServerBackendPluginFactoryInterface_iid, "/mcpserverbackend"_L1, Qt::CaseInsensitive))
@@ -31,7 +34,11 @@ public:
     QMcpServerCapabilities capabilities;
     QString instructions;
     QtMcp::ProtocolVersion protocolVersion = QtMcp::ProtocolVersion::Latest; // Default to latest version
-    QList<QtMcp::ProtocolVersion> supportedVersions = {QtMcp::ProtocolVersion::v2024_11_05, QtMcp::ProtocolVersion::v2025_03_26};
+    QList<QtMcp::ProtocolVersion> supportedVersions = {
+        QtMcp::ProtocolVersion::v2024_11_05,
+        QtMcp::ProtocolVersion::v2025_03_26,
+        QtMcp::ProtocolVersion::v2025_06_18
+    };
     QHash<QUuid, QHash<QJsonValue, std::function<void(const QUuid &session, const QJsonObject &)>>> callbacks;
     QHash<QString, std::function<QJsonValue(const QUuid &, const QJsonObject&, QMcpJSONRPCErrorError *)>> requestHandlers;
     QMultiHash<QString, std::function<void(const QUuid &, const QJsonObject&)>> notificationHandlers;
@@ -113,6 +120,19 @@ QMcpServer::Private::Private(const QString &type, QMcpServer *parent)
         emit q->newSession(session);
     });
     connect(backend, &QMcpServerBackendInterface::received, q, [this](const QUuid &session, const QJsonObject &object) {
+        if (object.contains("method"_L1)) {
+            qCInfo(lcQMcpServerCore).noquote()
+                    << "Received MCP message"
+                    << "session=" << session
+                    << "method=" << object.value("method"_L1).toString()
+                    << "id=" << object.value("id"_L1);
+        } else if (object.contains("result"_L1) || object.contains("error"_L1)) {
+            qCInfo(lcQMcpServerCore).noquote()
+                    << "Received MCP response"
+                    << "session=" << session
+                    << "id=" << object.value("id"_L1);
+        }
+
         // response
         if (object.contains("id"_L1)) {
             const auto id = object.value("id"_L1);
@@ -145,6 +165,11 @@ QMcpServer::Private::Private(const QString &type, QMcpServer *parent)
                         response.setId(id);
                         response.setError(error);
                         auto sessionObj = sessions.value(session);
+                        qCInfo(lcQMcpServerCore).noquote()
+                                << "Sending MCP error response"
+                                << "session=" << session
+                                << "method=" << method
+                                << "id=" << id;
                         q->send(session, response.toJsonObject(sessionObj ?
                                 sessionObj->protocolVersion() :
                                 protocolVersion));
@@ -156,6 +181,11 @@ QMcpServer::Private::Private(const QString &type, QMcpServer *parent)
                                      sessionObj->protocolVersion() :
                                      protocolVersion);
                         object.insert("result"_L1, result.toObject());
+                        qCInfo(lcQMcpServerCore).noquote()
+                                << "Sending MCP success response"
+                                << "session=" << session
+                                << "method=" << method
+                                << "id=" << id;
                         q->send(session, object);
                     }
                 } else {
@@ -166,6 +196,11 @@ QMcpServer::Private::Private(const QString &type, QMcpServer *parent)
                     error.setMessage("Server doesn't handle the request"_L1);
                     response.setError(error);
                     auto sessionObj = sessions.value(session);
+                    qCInfo(lcQMcpServerCore).noquote()
+                            << "Sending MCP unhandled-method error"
+                            << "session=" << session
+                            << "method=" << method
+                            << "id=" << id;
                     q->send(session, response.toJsonObject(sessionObj ?
                             sessionObj->protocolVersion() :
                             protocolVersion));
@@ -247,14 +282,21 @@ QMcpServer::QMcpServer(const QString &backend, QObject *parent)
         serverInfo.setVersion(QCoreApplication::applicationVersion());
         result.setServerInfo(serverInfo);
         result.setProtocolVersion(QtMcp::protocolVersionToString(negotiatedVersion)); // Use the negotiated version
+
+        // Streamable HTTP clients may pipeline requests immediately after initialize and
+        // not rely on a separate initialized notification before calling tools/list.
+        if (!session->isInitialized())
+            session->setInitialized(true);
+
         return result;
     });
     addNotificationHandler([this](const QUuid &sessionId, const QMcpInitializedNotification &notification) {
         Q_UNUSED(notification);
-        auto session = d->findSession(sessionId, false);
+        auto session = d->sessions.value(sessionId);
         if (!session)
             return;
-        session->setInitialized(true);
+        if (!session->isInitialized())
+            session->setInitialized(true);
     });
 
     addRequestHandler([](const QUuid &session, const QMcpPingRequest &, QMcpJSONRPCErrorError *) {

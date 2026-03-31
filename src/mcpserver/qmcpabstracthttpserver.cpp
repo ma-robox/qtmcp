@@ -14,8 +14,10 @@ public:
     void handleDisconnected(QTcpSocket *socket);
     void parseHttpRequest(QTcpSocket *socket);
     void sendHttpResponse(QTcpSocket *socket, const QByteArray &data,
-                         const QString &contentType = QStringLiteral("text/plain"),
-                         int statusCode = 200);
+                          const QString &contentType = QStringLiteral("text/plain"),
+                          int statusCode = 200,
+                          const QHttpHeaders &headers = {});
+    static QByteArray statusTextForCode(int statusCode);
 
 private:
     QMcpAbstractHttpServer *q;
@@ -27,6 +29,7 @@ public:
         int indexOfMethod = -1;
         qint64 contentLength = -1;  // Store expected content length
         qint64 receivedLength = 0;  // Track received data size
+        bool responseDeferred = false;
     };
 
     QMap<QTcpSocket*, ParseData> dataMap;
@@ -57,6 +60,13 @@ void QMcpAbstractHttpServer::Private::handleDisconnected(QTcpSocket *socket)
 {
     if (!socket)
         return;
+
+    for (auto it = sessions.begin(); it != sessions.end(); ) {
+        if (it.value() == socket)
+            it = sessions.erase(it);
+        else
+            ++it;
+    }
 
     if (dataMap.contains(socket)) {
         dataMap.remove(socket);
@@ -134,6 +144,7 @@ void QMcpAbstractHttpServer::Private::parseHttpRequest(QTcpSocket *socket)
         }
 
         data.request = QNetworkRequest(url);
+        data.request.setAttribute(QNetworkRequest::User, QUuid::createUuid());
         data.request.setHeaders(headers);
         data.data = data.data.remove(0, prevLf + 2);
 
@@ -148,6 +159,17 @@ void QMcpAbstractHttpServer::Private::parseHttpRequest(QTcpSocket *socket)
             if (mo->method(i).name() == slotName) {
                 data.indexOfMethod = i;
                 break;
+            }
+        }
+
+        if (data.indexOfMethod < 0) {
+            const QByteArray fallbackSlotName =
+                    method.toLower() == "delete"_ba ? "deleteResource"_ba : method.toLower();
+            for (int i = mo->methodOffset(); i < mo->methodCount(); i++) {
+                if (mo->method(i).name() == fallbackSlotName) {
+                    data.indexOfMethod = i;
+                    break;
+                }
             }
         }
     }
@@ -190,29 +212,69 @@ void QMcpAbstractHttpServer::Private::parseHttpRequest(QTcpSocket *socket)
     default:
         qFatal();
     }
-    if (sessions.key(socket).isNull())
-        sendHttpResponse(socket, ret, "text/plain"_L1, 200);
-    else
+    if (sessions.key(socket).isNull()) {
+        if (!data.responseDeferred)
+            sendHttpResponse(socket, ret, "text/plain"_L1, 200);
+    } else {
         socket->write(ret);
-    dataMap.insert(socket, ParseData());
+    }
+
+    if (!data.responseDeferred)
+        dataMap.insert(socket, ParseData());
 }
 
 void QMcpAbstractHttpServer::Private::sendHttpResponse(QTcpSocket *socket, const QByteArray &data,
-                                                     const QString &contentType, int statusCode)
+                                                       const QString &contentType,
+                                                       int statusCode,
+                                                       const QHttpHeaders &headers)
 {
-    QString statusText = (statusCode == 200) ? "OK"_L1 : "Not Found"_L1;
-    QByteArray response = u"HTTP/1.1 %1 %2\r\n"
+    const QByteArray statusText = statusTextForCode(statusCode);
+    QByteArray response = QString(u"HTTP/1.1 %1 %2\r\n"
                           "Content-Type: %3\r\n"
-                          "Content-Length: %4\r\n"
-                          "\r\n"_s
-                              .arg(statusCode)
-                              .arg(statusText)
-                              .arg(contentType)
-                              .arg(data.size())
-                              .toLatin1();
+                          "Content-Length: %4\r\n")
+                          .arg(statusCode)
+                          .arg(QString::fromLatin1(statusText))
+                          .arg(contentType)
+                          .arg(data.size())
+                          .toLatin1();
+    for (qsizetype i = 0; i < headers.size(); ++i) {
+        //response += headers.nameAt(i).toLatin1();
+        response += headers.nameAt(i);
+        response += ": ";
+        //response += headers.valueAt(i).toLatin1();
+        response += headers.valueAt(i);
+        response += "\r\n";
+    }
+    response += "\r\n"_ba;
     response += data;
     socket->write(response);
     socket->flush();
+}
+
+QByteArray QMcpAbstractHttpServer::Private::statusTextForCode(int statusCode)
+{
+    switch (statusCode) {
+    case 200:
+        return "OK"_ba;
+    case 202:
+        return "Accepted"_ba;
+    case 204:
+        return "No Content"_ba;
+    case 400:
+        return "Bad Request"_ba;
+    case 404:
+        return "Not Found"_ba;
+    case 405:
+        return "Method Not Allowed"_ba;
+    case 406:
+        return "Not Acceptable"_ba;
+    case 415:
+        return "Unsupported Media Type"_ba;
+    case 500:
+        return "Internal Server Error"_ba;
+    default:
+        return "OK"_ba;
+    }
 }
 
 QMcpAbstractHttpServer::QMcpAbstractHttpServer(QObject *parent)
@@ -273,6 +335,44 @@ QUuid QMcpAbstractHttpServer::registerSseRequest(const QNetworkRequest &request)
     return ret;
 }
 
+QUuid QMcpAbstractHttpServer::deferHttpResponse(const QNetworkRequest &request)
+{
+    const auto requestId = request.attribute(QNetworkRequest::User).toUuid();
+    if (requestId.isNull())
+        return {};
+
+    const auto sockets = d->dataMap.keys();
+    for (QTcpSocket *socket : sockets) {
+        auto &parseData = d->dataMap[socket];
+        if (parseData.request.attribute(QNetworkRequest::User).toUuid() == requestId) {
+            parseData.responseDeferred = true;
+            return requestId;
+        }
+    }
+
+    return {};
+}
+
+void QMcpAbstractHttpServer::sendHttpResponse(const QUuid &id,
+                                              const QByteArray &data,
+                                              const QString &contentType,
+                                              int statusCode,
+                                              const QHttpHeaders &headers)
+{
+    const auto sockets = d->dataMap.keys();
+    for (QTcpSocket *socket : sockets) {
+        const auto requestId = d->dataMap.value(socket).request.attribute(QNetworkRequest::User).toUuid();
+        if (requestId != id)
+            continue;
+
+        d->sendHttpResponse(socket, data, contentType, statusCode, headers);
+        d->dataMap.insert(socket, Private::ParseData());
+        return;
+    }
+
+    qWarning() << "http request" << id << "not found";
+}
+
 void QMcpAbstractHttpServer::sendSseEvent(const QUuid &id, const QByteArray &data,
                                          const QString &event)
 {
@@ -300,5 +400,10 @@ void QMcpAbstractHttpServer::closeSseConnection(const QUuid &id)
     socket->close();
     socket->deleteLater();
     return;
+}
+
+bool QMcpAbstractHttpServer::hasSseConnection(const QUuid &id) const
+{
+    return d->sessions.contains(id);
 }
 
