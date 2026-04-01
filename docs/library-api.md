@@ -36,7 +36,7 @@ Per usare solo client o solo server puoi linkare il solo modulo necessario.
 
 ## Namespace e versioni
 
-Il namespace pubblico è `QtMcp`, definito in [qtmcpnamespace.h](/mnt/c/users/alex/desktop/qtmcp-chatgpt/source/src/mcpcommon/qtmcpnamespace.h).
+Il namespace pubblico è `QtMcp`, definito in [qtmcpnamespace.h](source/src/mcpcommon/qtmcpnamespace.h).
 
 Versioni protocollo supportate:
 
@@ -95,7 +95,7 @@ Quindi puoi usarli senza scrivere JSON-RPC a mano.
 
 ## Client API
 
-La classe principale è [qmcpclient.h](/mnt/c/users/alex/desktop/qtmcp-chatgpt/source/src/mcpclient/qmcpclient.h).
+La classe principale è [qmcpclient.h](source/src/mcpclient/qmcpclient.h).
 
 ### Creazione del client
 
@@ -166,8 +166,8 @@ client->addRequestHandler([](const QMcpCreateMessageRequest &request,
 
 Le classi principali sono:
 
-- [qmcpserver.h](/mnt/c/users/alex/desktop/qtmcp-chatgpt/source/src/mcpserver/qmcpserver.h)
-- [qmcpserversession.h](/mnt/c/users/alex/desktop/qtmcp-chatgpt/source/src/mcpserver/qmcpserversession.h)
+- [qmcpserver.h](source/src/mcpserver/qmcpserver.h)
+- [qmcpserversession.h](source/src/mcpserver/qmcpserversession.h)
 
 ### Creazione del server
 
@@ -185,8 +185,8 @@ Backend disponibili:
 
 Esempi presenti nel repository:
 
-- [echo/main.cpp](/mnt/c/users/alex/desktop/qtmcp-chatgpt/source/examples/mcpserver/echo/main.cpp)
-- [texteditor/mainwindow.cpp](/mnt/c/users/alex/desktop/qtmcp-chatgpt/source/examples/mcpserver/texteditor/mainwindow.cpp)
+- [echo/main.cpp](source/examples/mcpserver/echo/main.cpp)
+- [texteditor/mainwindow.cpp](source/examples/mcpserver/texteditor/mainwindow.cpp)
 
 ### Configurazione server
 
@@ -283,7 +283,7 @@ Risultato lato MCP:
 - nome tool: `demo/hello`
 - schema input derivato dai parametri Qt
 
-Regole pratiche dedotte dall’implementazione in [qmcpserversession.cpp](/mnt/c/users/alex/desktop/qtmcp-chatgpt/source/src/mcpserver/qmcpserversession.cpp):
+Regole pratiche dedotte dall’implementazione in [qmcpserversession.cpp](source/src/mcpserver/qmcpserversession.cpp):
 
 - vengono esposti solo metodi `public`
 - `signals` e costruttori sono ignorati
@@ -314,7 +314,7 @@ Se un tool asincrono riceve un `progressToken`, la sessione emette notifiche di 
 
 Un esempio reale di tool asincroni è in:
 
-- [mainwindow.h](/mnt/c/users/alex/desktop/qtmcp-chatgpt/source/examples/mcpserver/texteditor/mainwindow.h)
+- [mainwindow.h](source/examples/mcpserver/texteditor/mainwindow.h)
 
 ### Resource e prompt
 
@@ -336,8 +336,8 @@ Libreria e trasporto sono separati.
 
 Interfacce pubbliche:
 
-- [qmcpclientbackendinterface.h](/mnt/c/users/alex/desktop/qtmcp-chatgpt/source/src/mcpclient/qmcpclientbackendinterface.h)
-- [qmcpserverbackendinterface.h](/mnt/c/users/alex/desktop/qtmcp-chatgpt/source/src/mcpserver/qmcpserverbackendinterface.h)
+- [qmcpclientbackendinterface.h](source/src/mcpclient/qmcpclientbackendinterface.h)
+- [qmcpserverbackendinterface.h](source/src/mcpserver/qmcpserverbackendinterface.h)
 
 Se devi implementare un nuovo trasporto:
 
@@ -437,8 +437,8 @@ Questa guida riflette il codice corrente del repository, non una API reference g
 
 ## Riferimenti nel repository
 
-- overview generale: [README.md](/mnt/c/users/alex/desktop/qtmcp-chatgpt/source/README.md)
-- client: [qmcpclient.h](/mnt/c/users/alex/desktop/qtmcp-chatgpt/source/src/mcpclient/qmcpclient.h)
-- server: [qmcpserver.h](/mnt/c/users/alex/desktop/qtmcp-chatgpt/source/src/mcpserver/qmcpserver.h)
-- sessione server: [qmcpserversession.h](/mnt/c/users/alex/desktop/qtmcp-chatgpt/source/src/mcpserver/qmcpserversession.h)
-- namespace/versioni: [qtmcpnamespace.h](/mnt/c/users/alex/desktop/qtmcp-chatgpt/source/src/mcpcommon/qtmcpnamespace.h)
+- overview generale: [README.md](source/README.md)
+- client: [qmcpclient.h](source/src/mcpclient/qmcpclient.h)
+- server: [qmcpserver.h](source/src/mcpserver/qmcpserver.h)
+- sessione server: [qmcpserversession.h](source/src/mcpserver/qmcpserversession.h)
+- namespace/versioni: [qtmcpnamespace.h](source/src/mcpcommon/qtmcpnamespace.h)
