@@ -14,9 +14,13 @@ QT_BEGIN_NAMESPACE
 class QMcpServerStreamableHttp : public QMcpServerBackendInterface
 {
     Q_OBJECT
+    Q_PROPERTY(QString bearerToken READ bearerToken WRITE setBearerToken)
 public:
     explicit QMcpServerStreamableHttp(QObject *parent = nullptr);
     ~QMcpServerStreamableHttp() override;
+
+    void setBearerToken(const QString &bearerToken);
+    QString bearerToken() const;
 
 public slots:
     void start(const QString &server) override;

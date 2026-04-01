@@ -627,6 +627,22 @@ void QMcpServer::setSupportedProtocolVersions(const QList<QtMcp::ProtocolVersion
     emit supportedProtocolVersionsChanged(versions);
 }
 
+QString QMcpServer::bearerToken() const
+{
+    if (!d->backend)
+        return {};
+
+    return d->backend->property("bearerToken").toString();
+}
+
+void QMcpServer::setBearerToken(const QString &bearerToken)
+{
+    if (!d->backend)
+        return;
+
+    d->backend->setProperty("bearerToken", bearerToken);
+}
+
 bool QMcpServer::isProtocolVersionSupported(QtMcp::ProtocolVersion version) const
 {
     return d->supportedVersions.contains(version);

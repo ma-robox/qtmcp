@@ -93,6 +93,13 @@ QString requestSummary(const QNetworkRequest &request)
             + request.headers().value("Mcp-Session-Id"_L1);
 }
 
+QHttpHeaders unauthorizedHeaders()
+{
+    QHttpHeaders headers;
+    headers.append("WWW-Authenticate"_L1, "Bearer"_L1);
+    return headers;
+}
+
 } // namespace
 
 class StreamableHttpServer::Private
@@ -119,6 +126,7 @@ public:
     };
 
     QString endpointPath = "/mcp"_L1;
+    QString bearerToken;
     QHash<QUuid, SessionState> sessions;
     QHash<QUuid, QHash<QString, PendingResponse>> pendingResponses;
     QHash<QUuid, PendingBatch> pendingBatches;
@@ -156,6 +164,15 @@ public:
         else
             pendingResponses[batch.sessionId] = pendingBySession;
     }
+
+    bool isAuthorized(const QNetworkRequest &request) const
+    {
+        if (bearerToken.isEmpty())
+            return true;
+
+        const auto authorization = request.headers().value("Authorization"_L1);
+        return authorization == "Bearer "_L1 + bearerToken;
+    }
 };
 
 StreamableHttpServer::StreamableHttpServer(QObject *parent)
@@ -182,6 +199,16 @@ QString StreamableHttpServer::endpointPath() const
     return d->endpointPath;
 }
 
+void StreamableHttpServer::setBearerToken(QString bearerToken)
+{
+    d->bearerToken = bearerToken;
+}
+
+QString StreamableHttpServer::bearerToken() const
+{
+    return d->bearerToken;
+}
+
 QByteArray StreamableHttpServer::get(const QNetworkRequest &request)
 {
 #ifdef QT_MCP_STREAMABLEHTTP_VERBOSE
@@ -192,6 +219,15 @@ QByteArray StreamableHttpServer::get(const QNetworkRequest &request)
     const auto deferredId = deferHttpResponse(request);
     if (deferredId.isNull())
         return {};
+
+    if (!d->isAuthorized(request)) {
+        sendHttpResponse(deferredId,
+                         QByteArrayLiteral("Unauthorized"),
+                         QStringLiteral("text/plain"),
+                         401,
+                         unauthorizedHeaders());
+        return {};
+    }
 
     if (request.url().path() != d->endpointPath) {
         sendHttpResponse(deferredId,
@@ -285,6 +321,15 @@ QByteArray StreamableHttpServer::post(const QNetworkRequest &request, const QByt
     const auto deferredId = deferHttpResponse(request);
     if (deferredId.isNull())
         return {};
+
+    if (!d->isAuthorized(request)) {
+        sendHttpResponse(deferredId,
+                         QByteArrayLiteral("Unauthorized"),
+                         QStringLiteral("text/plain"),
+                         401,
+                         unauthorizedHeaders());
+        return {};
+    }
 
     if (request.url().path() != d->endpointPath) {
         sendHttpResponse(deferredId,
@@ -437,6 +482,15 @@ QByteArray StreamableHttpServer::deleteResource(const QNetworkRequest &request)
     const auto deferredId = deferHttpResponse(request);
     if (deferredId.isNull())
         return {};
+
+    if (!d->isAuthorized(request)) {
+        sendHttpResponse(deferredId,
+                         QByteArrayLiteral("Unauthorized"),
+                         QStringLiteral("text/plain"),
+                         401,
+                         unauthorizedHeaders());
+        return {};
+    }
 
     if (request.url().path() != d->endpointPath) {
         sendHttpResponse(deferredId,

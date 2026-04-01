@@ -86,6 +86,16 @@ QMcpServerStreamableHttp::QMcpServerStreamableHttp(QObject *parent)
 
 QMcpServerStreamableHttp::~QMcpServerStreamableHttp() = default;
 
+void QMcpServerStreamableHttp::setBearerToken(const QString &bearerToken)
+{
+    d->httpServer.setBearerToken(bearerToken);
+}
+
+QString QMcpServerStreamableHttp::bearerToken() const
+{
+    return d->httpServer.bearerToken();
+}
+
 void QMcpServerStreamableHttp::start(const QString &server)
 {
     const auto config = parseServerConfig(server);

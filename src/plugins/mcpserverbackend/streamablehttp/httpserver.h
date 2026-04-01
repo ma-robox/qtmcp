@@ -1,6 +1,7 @@
 #ifndef STREAMABLEHTTPHTTPSERVER_H
 #define STREAMABLEHTTPHTTPSERVER_H
 
+#include <QtCore/QString>
 #include <QtCore/QScopedPointer>
 #include <QtMcpServer/qmcpabstracthttpserver.h>
 
@@ -13,6 +14,8 @@ public:
 
     void setEndpointPath(QString endpointPath);
     QString endpointPath() const;
+    void setBearerToken(QString bearerToken);
+    QString bearerToken() const;
 
     Q_INVOKABLE QByteArray get(const QNetworkRequest &request);
     Q_INVOKABLE QByteArray post(const QNetworkRequest &request, const QByteArray &body);

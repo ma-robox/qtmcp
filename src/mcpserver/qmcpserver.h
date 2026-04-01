@@ -99,6 +99,16 @@ class Q_MCPSERVER_EXPORT QMcpServer : public QObject
         a compatible protocol version with clients.
     */
     Q_PROPERTY(QList<QtMcp::ProtocolVersion> supportedProtocolVersions READ supportedProtocolVersions NOTIFY supportedProtocolVersionsChanged FINAL)
+
+    /*!
+        \property QMcpServer::bearerToken
+        This property holds the optional bearer token used by backends that support
+        HTTP authorization, such as the streamable HTTP transport.
+
+        If the selected backend does not support bearer tokens, setting this property
+        has no effect.
+    */
+    Q_PROPERTY(QString bearerToken READ bearerToken WRITE setBearerToken FINAL)
 public:
     /*!
         Returns a list of available backend implementations for the MCP server.
@@ -336,6 +346,12 @@ public:
     QList<QtMcp::ProtocolVersion> supportedProtocolVersions() const;
 
     /*!
+        Returns the bearer token configured on the active backend, when supported.
+        Returns an empty string for backends that do not expose this setting.
+    */
+    QString bearerToken() const;
+
+    /*!
         Checks if a given protocol version is supported by the server.
         \param version Protocol version to check
         \return true if supported, false otherwise
@@ -379,6 +395,12 @@ public slots:
         \sa supportedProtocolVersions(), isProtocolVersionSupported()
     */
     void setSupportedProtocolVersions(const QList<QtMcp::ProtocolVersion> &versions);
+
+    /*!
+        Sets the bearer token on the active backend, when supported.
+        For unsupported backends this call is ignored.
+    */
+    void setBearerToken(const QString &bearerToken);
 
     /*!
         Starts the MCP server with the given arguments.
