@@ -395,6 +395,7 @@ void QMcpServerSession::registerToolSet(QObject *toolSet, const QHash<QString, Q
             { "QString", "string" },
             { "bool", "boolean" },
             { "int", "integer" },
+            { "QJsonObject", "object" },
         };
         static const QSet<QString> internalTypes { "QUuid"_L1 };
 
@@ -427,6 +428,8 @@ void QMcpServerSession::registerToolSet(QObject *toolSet, const QHash<QString, Q
             QJsonObject object;
             if (typeSet.size() == 1) {
                 object.insert("type"_L1, typeSet.first());
+                if (typeSet.first() == "object"_L1)
+                    object.insert("additionalProperties"_L1, true);
             } else if (typeSet.size() > 1) {
                 object.insert("type"_L1, QJsonArray::fromStringList(typeSet));
             }
@@ -628,7 +631,12 @@ QList<QMcpCallToolResultContent> QMcpServerSession::callTool(const QString &name
                     convertedArgs.append(d->sessionId);
                     continue;
                 default: {
-                    auto value = params.value(name).toVariant();
+                    QVariant value;
+                    if (metaType.id() == QMetaType::QJsonObject) {
+                        value = params.value(name).toObject();
+                    } else {
+                        value = params.value(name).toVariant();
+                    }
                     if (!value.convert(mm.parameterMetaType(j))) {
                         qWarning() << "Failed to convert JSON value to type:" << type;
                         break;
@@ -799,7 +807,12 @@ QFuture<QMcpCallToolResult> QMcpServerSession::callToolAsync(
                 if (!params.contains(paramName))
                     break;
 
-                auto value = params.value(paramName).toVariant();
+                QVariant value;
+                if (type.id() == QMetaType::QJsonObject) {
+                    value = params.value(paramName).toObject();
+                } else {
+                    value = params.value(paramName).toVariant();
+                }
                 if (!value.convert(type)) {
                     qWarning() << "Failed to convert parameter" << paramName;
                     break;
