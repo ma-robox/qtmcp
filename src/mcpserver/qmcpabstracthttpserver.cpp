@@ -5,6 +5,8 @@
 #include <QtNetwork/QNetworkRequest>
 #include <QtNetwork/QNetworkReply>
 #include <QtCore/QMap>
+#include <QtCore/QPointer>
+#include <QtCore/QThread>
 
 class QMcpAbstractHttpServer::Private
 {
@@ -35,6 +37,7 @@ public:
 
     QMap<QTcpSocket*, ParseData> dataMap;
     QMap<QUuid, QTcpSocket*> sessions;
+    QMap<QUuid, QPointer<QTcpSocket>> deferredResponses;
 };
 
 QMcpAbstractHttpServer::Private::Private(QMcpAbstractHttpServer *parent)
@@ -62,9 +65,22 @@ void QMcpAbstractHttpServer::Private::handleDisconnected(QTcpSocket *socket)
     if (!socket)
         return;
 
+    QList<QUuid> disconnectedSessions;
     for (auto it = sessions.begin(); it != sessions.end(); ) {
-        if (it.value() == socket)
+        if (it.value() == socket) {
+            disconnectedSessions.append(it.key());
             it = sessions.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
+    for (const auto &sessionId : std::as_const(disconnectedSessions))
+        emit q->sseConnectionClosed(sessionId);
+
+    for (auto it = deferredResponses.begin(); it != deferredResponses.end(); ) {
+        if (it.value() == socket)
+            it = deferredResponses.erase(it);
         else
             ++it;
     }
@@ -234,8 +250,7 @@ void QMcpAbstractHttpServer::Private::parseHttpRequest(QTcpSocket *socket)
         socket->write(ret);
     }
 
-    if (!data.responseDeferred || data.responseCompleted)
-        resetParseData(socket, remainingData);
+    resetParseData(socket, remainingData);
 }
 
 void QMcpAbstractHttpServer::Private::sendHttpResponse(QTcpSocket *socket, const QByteArray &data,
@@ -361,6 +376,7 @@ QUuid QMcpAbstractHttpServer::deferHttpResponse(const QNetworkRequest &request)
         auto &parseData = d->dataMap[socket];
         if (parseData.request.attribute(QNetworkRequest::User).toUuid() == requestId) {
             parseData.responseDeferred = true;
+            d->deferredResponses.insert(requestId, socket);
             return requestId;
         }
     }
@@ -374,14 +390,16 @@ void QMcpAbstractHttpServer::sendHttpResponse(const QUuid &id,
                                               int statusCode,
                                               const QHttpHeaders &headers)
 {
-    const auto sockets = d->dataMap.keys();
-    for (QTcpSocket *socket : sockets) {
-        const auto requestId = d->dataMap.value(socket).request.attribute(QNetworkRequest::User).toUuid();
-        if (requestId != id)
-            continue;
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, [this, id, data, contentType, statusCode, headers]() {
+            sendHttpResponse(id, data, contentType, statusCode, headers);
+        }, Qt::QueuedConnection);
+        return;
+    }
 
+    const auto socket = d->deferredResponses.take(id);
+    if (socket) {
         d->sendHttpResponse(socket, data, contentType, statusCode, headers);
-        d->dataMap[socket].responseCompleted = true;
         return;
     }
 
@@ -391,6 +409,13 @@ void QMcpAbstractHttpServer::sendHttpResponse(const QUuid &id,
 void QMcpAbstractHttpServer::sendSseEvent(const QUuid &id, const QByteArray &data,
                                          const QString &event)
 {
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, [this, id, data, event]() {
+            sendSseEvent(id, data, event);
+        }, Qt::QueuedConnection);
+        return;
+    }
+
     if (!d->sessions.contains(id)) {
         qWarning() << "sse" << id << "not found";
         return;
@@ -406,6 +431,13 @@ void QMcpAbstractHttpServer::sendSseEvent(const QUuid &id, const QByteArray &dat
 
 void QMcpAbstractHttpServer::closeSseConnection(const QUuid &id)
 {
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, [this, id]() {
+            closeSseConnection(id);
+        }, Qt::QueuedConnection);
+        return;
+    }
+
     if (!d->sessions.contains(id)) {
         qWarning() << "sse" << id << "not found";
         return;

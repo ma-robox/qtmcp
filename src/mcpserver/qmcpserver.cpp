@@ -132,6 +132,12 @@ QMcpServer::Private::Private(const QString &type, QMcpServer *parent)
 
         emit q->newSession(session);
     });
+    connect(backend, &QMcpServerBackendInterface::sessionClosed, q, [this](const QUuid &sessionId) {
+        auto session = sessions.take(sessionId);
+        if (session)
+            session->deleteLater();
+        emit q->sessionClosed(sessionId);
+    });
     connect(backend, &QMcpServerBackendInterface::received, q, [this](const QUuid &session, const QJsonObject &object) {
 #ifdef QT_MCP_CORE_VERBOSE
         if (object.contains("method"_L1)) {

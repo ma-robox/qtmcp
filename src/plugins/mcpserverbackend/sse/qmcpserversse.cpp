@@ -41,6 +41,7 @@ QMcpServerSse::QMcpServerSse(QObject *parent)
     , d(new Private(this))
 {
     connect(&d->httpServer, &HttpServer::newSession, this, &QMcpServerSse::newSessionStarted);
+    connect(&d->httpServer, &HttpServer::sessionClosed, this, &QMcpServerSse::sessionClosed);
     connect(&d->httpServer, &HttpServer::received, this, &QMcpServerSse::received);
 }
 

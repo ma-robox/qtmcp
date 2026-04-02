@@ -3,6 +3,7 @@
 
 #include <QtCore/QEventLoop>
 #include <QtCore/QTimer>
+#include <QtTest/QSignalSpy>
 #include <QtMcpCommon/QMcpNotification>
 #include <QtMcpCommon/QMcpRequest>
 #include <QtMcpCommon/QMcpResult>
@@ -75,6 +76,7 @@ private slots:
     void testBasicServer();
     void testRequestHandler();
     void testNotificationHandler();
+    void testSessionClosedSignal();
 
 private:
     static const int TIMEOUT = 1000; // 1 second
@@ -137,6 +139,19 @@ void tst_QMcpServer::testNotificationHandler()
     TestNotification notification;
     notification.message = QStringLiteral("Test notification");
     m_server->notify(QUuid(), notification);
+}
+
+void tst_QMcpServer::testSessionClosedSignal()
+{
+    const auto sessions = m_server->sessions();
+    QVERIFY(!sessions.isEmpty());
+    const auto sessionId = sessions.constFirst()->sessionId();
+
+    QSignalSpy sessionClosedSpy(m_server, &QMcpServer::sessionClosed);
+    m_server->shutdown();
+
+    QTRY_COMPARE(sessionClosedSpy.count(), 1);
+    QCOMPARE(sessionClosedSpy.takeFirst().at(0).toUuid(), sessionId);
 }
 
 QTEST_MAIN(tst_QMcpServer)

@@ -52,6 +52,14 @@ public:
     */
     bool bind(QTcpServer *server);
 
+signals:
+    /*!
+        Emitted when an SSE connection is closed.
+
+        \param id UUID of the closed SSE connection
+    */
+    void sseConnectionClosed(const QUuid &id);
+
 protected:
     /*!
         Registers a new SSE request and returns a unique identifier for it.

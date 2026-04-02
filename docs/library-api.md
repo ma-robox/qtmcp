@@ -204,6 +204,7 @@ Il server negozia la versione protocollo durante `initialize`. Le versioni suppo
 Ogni connessione client crea una `QMcpServerSession`, emessa tramite:
 
 - `newSession(QMcpServerSession *session)`
+- `sessionClosed(const QUuid &sessionId)` quando la sessione viene chiusa
 
 La sessione contiene stato per:
 

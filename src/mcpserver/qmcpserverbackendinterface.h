@@ -90,6 +90,12 @@ signals:
     void newSessionStarted(const QUuid &session);
 
     /*!
+        Emitted when a client session is closed.
+        \param sessionId UUID of the closed session
+    */
+    void sessionClosed(const QUuid &sessionId);
+
+    /*!
         Emitted when the backend has successfully started.
     */
     void started();

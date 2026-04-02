@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only
 
 #include <QTest>
+#include <QtCore/QElapsedTimer>
+#include <QtCore/QEventLoop>
 #include <QtCore/QUrlQuery>
 #include <QtCore/QTimer>
 #include <QtMcpServer/qmcpabstracthttpserver.h>
@@ -21,6 +23,7 @@ protected:
     Q_INVOKABLE QByteArray get() const;
     Q_INVOKABLE QByteArray getEcho(const QNetworkRequest &request) const;
     Q_INVOKABLE QByteArray post(const QNetworkRequest &request, const QByteArray &body) const;
+    Q_INVOKABLE QByteArray postDeferred(const QNetworkRequest &request, const QByteArray &body);
     Q_INVOKABLE QByteArray postEcho(const QNetworkRequest &request, const QByteArray &body) const;
     Q_INVOKABLE QByteArray getSse(const QNetworkRequest &request);
     Q_INVOKABLE QByteArray postMessages(const QNetworkRequest &request, const QByteArray &body);
@@ -49,6 +52,15 @@ QByteArray TestHttpServer::postEcho(const QNetworkRequest &request, const QByteA
     Q_UNUSED(request);
     Q_UNUSED(body);
     return body;
+}
+
+QByteArray TestHttpServer::postDeferred(const QNetworkRequest &request, const QByteArray &body)
+{
+    const auto requestId = deferHttpResponse(request);
+    QTimer::singleShot(0, this, [this, requestId, body]() {
+        sendHttpResponse(requestId, body, "text/plain"_L1, 200);
+    });
+    return {};
 }
 
 QByteArray TestHttpServer::getSse(const QNetworkRequest &request)
@@ -85,6 +97,7 @@ private slots:
     void testPost_data();
     void testPost();
     void testSse();
+    void testDeferredPostResetsParserState();
 
 private:
     QNetworkAccessManager nam;
@@ -271,6 +284,56 @@ void tst_QMcpAbstractHttpServer::testSse()
     }
 
     qDebug() << __LINE__ << receivedData;
+}
+
+void tst_QMcpAbstractHttpServer::testDeferredPostResetsParserState()
+{
+    QTcpSocket socket;
+    socket.connectToHost(QHostAddress::LocalHost, port);
+    QVERIFY(socket.waitForConnected(1000));
+
+    auto sendPost = [&socket, this](const QByteArray &path, const QByteArray &body) {
+        QByteArray request;
+        request += "POST " + path + " HTTP/1.1\r\n";
+        request += "Host: 127.0.0.1\r\n";
+        request += "Content-Type: text/plain\r\n";
+        request += "Content-Length: " + QByteArray::number(body.size()) + "\r\n";
+        request += "Connection: keep-alive\r\n\r\n";
+        request += body;
+        QCOMPARE(socket.write(request), request.size());
+        QVERIFY(socket.waitForBytesWritten(1000));
+
+        QByteArray response;
+        QElapsedTimer timer;
+        timer.start();
+        while (!response.contains("\r\n\r\n")) {
+            if (!socket.waitForReadyRead(1000))
+                break;
+            response += socket.readAll();
+            QVERIFY(timer.elapsed() < 2000);
+        }
+
+        const int headerEnd = response.indexOf("\r\n\r\n");
+        QVERIFY(headerEnd >= 0);
+        const QByteArray headers = response.left(headerEnd);
+        const auto lengthLineIndex = headers.indexOf("Content-Length: ");
+        QVERIFY(lengthLineIndex >= 0);
+        const int lengthStart = lengthLineIndex + int(strlen("Content-Length: "));
+        const int lengthEnd = headers.indexOf("\r\n", lengthStart);
+        QVERIFY(lengthEnd > lengthStart);
+        const int contentLength = headers.mid(lengthStart, lengthEnd - lengthStart).toInt();
+
+        QByteArray payload = response.mid(headerEnd + 4);
+        while (payload.size() < contentLength) {
+            QVERIFY(socket.waitForReadyRead(1000));
+            payload += socket.readAll();
+            QVERIFY(timer.elapsed() < 2000);
+        }
+        return payload.left(contentLength);
+    };
+
+    QCOMPARE(sendPost("/deferred"_ba, "first"_ba), "first"_ba);
+    QCOMPARE(sendPost("/echo"_ba, "second"_ba), "second"_ba);
 }
 
 QTEST_MAIN(tst_QMcpAbstractHttpServer)

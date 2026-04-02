@@ -22,6 +22,7 @@ public slots:
 
 signals:
     void newSession(const QUuid &session);
+    void sessionClosed(const QUuid &sessionId);
     void received(const QUuid &session, const QJsonObject &object);
 
 private:

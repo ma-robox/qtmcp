@@ -13,6 +13,11 @@ HttpServer::HttpServer(QObject *parent)
     : QMcpAbstractHttpServer(parent)
     , d(new Private)
 {
+    connect(this, &QMcpAbstractHttpServer::sseConnectionClosed, this, [this](const QUuid &session) {
+        if (!d->sessions.remove(session))
+            return;
+        emit sessionClosed(session);
+    });
 }
 
 HttpServer::~HttpServer() = default;

@@ -6,6 +6,7 @@
 #include <QtCore/QJsonParseError>
 #include <QtCore/QLoggingCategory>
 #include <QtCore/QDebug>
+#include <QtCore/QThread>
 #include <optional>
 
 Q_LOGGING_CATEGORY(lcQMcpServerStreamableHttpTransport, "qt.mcpserver.plugins.backend.streamablehttp.transport")
@@ -516,6 +517,13 @@ QByteArray StreamableHttpServer::deleteResource(const QNetworkRequest &request)
 
 void StreamableHttpServer::send(const QUuid &session, const QJsonObject &object)
 {
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, [this, session, object]() {
+            send(session, object);
+        }, Qt::QueuedConnection);
+        return;
+    }
+
     if (d->pendingResponses.contains(session) && object.contains("id"_L1)) {
         auto &pendingById = d->pendingResponses[session];
         const auto key = Private::responseKey(object.value("id"_L1));
@@ -597,6 +605,13 @@ void StreamableHttpServer::send(const QUuid &session, const QJsonObject &object)
 
 void StreamableHttpServer::closeSession(const QUuid &session)
 {
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, [this, session]() {
+            closeSession(session);
+        }, Qt::QueuedConnection);
+        return;
+    }
+
     qCInfo(lcQMcpServerStreamableHttpTransport)
             << "Closing MCP session" << session;
     if (d->pendingResponses.contains(session)) {
@@ -615,10 +630,18 @@ void StreamableHttpServer::closeSession(const QUuid &session)
     }
 
     d->sessions.remove(session);
+    emit sessionClosed(session);
 }
 
 void StreamableHttpServer::shutdown()
 {
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, [this]() {
+            shutdown();
+        }, Qt::QueuedConnection);
+        return;
+    }
+
     const auto pendingBatchIds = d->pendingBatches.keys();
     for (const auto &batchId : pendingBatchIds) {
         sendHttpResponse(batchId,

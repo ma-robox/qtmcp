@@ -274,12 +274,15 @@ public:
 
                 // Set up continuation to send response when ready
                 future.then([this, session, id, versionToUse](const typename is_future<Result>::inner_type &result) {
-                    QMcpJSONRPCResponse response;
-                    response.setId(id.toVariant());
-                    auto object = response.toJsonObject(versionToUse);
-                    object.insert("result"_L1, result.toJsonObject(versionToUse));
-                    send(session, object);
-                    endAsyncOperation();
+                    const auto resultObject = result.toJsonObject(versionToUse);
+                    QMetaObject::invokeMethod(this, [this, session, id, versionToUse, resultObject]() {
+                        QMcpJSONRPCResponse response;
+                        response.setId(id.toVariant());
+                        auto object = response.toJsonObject(versionToUse);
+                        object.insert("result"_L1, resultObject);
+                        send(session, object);
+                        endAsyncOperation();
+                    }, Qt::QueuedConnection);
                 });
 
                 // Return empty value since we'll send response later
@@ -456,6 +459,12 @@ signals:
         \param session The new session object
     */
     void newSession(QMcpServerSession *session);
+
+    /*!
+        Emitted when a client session is closed.
+        \param sessionId UUID of the closed session
+    */
+    void sessionClosed(const QUuid &sessionId);
 
     /*!
         Emitted when a raw JSON message is received from a client.

@@ -27,6 +27,7 @@ class QMcpServerStdio::Private
 public:
     Private(QMcpServerStdio *parent);
     void shutdown();
+    void closeSession();
 
 private:
     void readData(QSocketDescriptor socket, QSocketNotifier::Type activationEvent);
@@ -35,6 +36,7 @@ private:
     QMcpServerStdio *q;
     QSocketNotifier *notifier;
     const QUuid uuid = QUuid::createUuid();
+    bool sessionOpen = true;
 };
 
 QMcpServerStdio::Private::Private(QMcpServerStdio *parent)
@@ -60,12 +62,14 @@ void QMcpServerStdio::Private::readData(QSocketDescriptor socket, QSocketNotifie
     if (bytesRead < 0) {
         std::perror("Error reading STDIN");
         notifier->setEnabled(false);
+        closeSession();
         emit q->finished();
         return;
     }
     if (bytesRead == 0) {
         // EOF reached (no more data)
         notifier->setEnabled(false);
+        closeSession();
         emit q->finished();
         return;
     }
@@ -107,10 +111,20 @@ void QMcpServerStdio::Private::readData(QSocketDescriptor socket, QSocketNotifie
     }
 }
 
+void QMcpServerStdio::Private::closeSession()
+{
+    if (!sessionOpen)
+        return;
+
+    sessionOpen = false;
+    emit q->sessionClosed(uuid);
+}
+
 void QMcpServerStdio::Private::shutdown()
 {
     if (notifier)
         notifier->setEnabled(false);
+    closeSession();
     emit q->finished();
 }
 
