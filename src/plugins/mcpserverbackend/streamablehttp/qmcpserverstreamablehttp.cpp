@@ -97,6 +97,16 @@ QString QMcpServerStreamableHttp::bearerToken() const
     return d->httpServer.bearerToken();
 }
 
+void QMcpServerStreamableHttp::setSessionCloseGracePeriodMs(int gracePeriodMs)
+{
+    d->httpServer.setSessionCloseGracePeriodMs(gracePeriodMs);
+}
+
+int QMcpServerStreamableHttp::sessionCloseGracePeriodMs() const
+{
+    return d->httpServer.sessionCloseGracePeriodMs();
+}
+
 QString QMcpServerStreamableHttp::remoteAddress(const QUuid &session) const
 {
     return d->httpServer.remoteAddress(session);

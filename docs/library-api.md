@@ -196,8 +196,15 @@ Proprietà pubbliche:
 - `instructions`
 - `protocolVersion`
 - `supportedProtocolVersions`
+- `bearerToken`
+- `sessionCloseGracePeriodMs`
 
 Il server negozia la versione protocollo durante `initialize`. Le versioni supportate sono esposte da `supportedProtocolVersions()`.
+
+Note utili:
+
+- `bearerToken` Ã¨ usata dai backend HTTP che supportano autorizzazione bearer, come `streamablehttp`
+- `sessionCloseGracePeriodMs` Ã¨ usata dai backend che supportano una finestra di riconnessione della sessione; in `streamablehttp` controlla per quanto tempo una sessione resta aperta dopo la chiusura della SSE prima di emettere `sessionClosed(...)`
 
 ### Sessioni
 
@@ -205,6 +212,8 @@ Ogni connessione client crea una `QMcpServerSession`, emessa tramite:
 
 - `newSession(QMcpServerSession *session)`
 - `sessionClosed(const QUuid &sessionId)` quando la sessione viene chiusa
+
+Nel backend `streamablehttp`, la chiusura della sessione puÃ² essere ritardata da `sessionCloseGracePeriodMs` per consentire la riapertura della connessione SSE sulla stessa sessione.
 
 La sessione contiene stato per:
 

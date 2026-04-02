@@ -109,6 +109,17 @@ class Q_MCPSERVER_EXPORT QMcpServer : public QObject
         has no effect.
     */
     Q_PROPERTY(QString bearerToken READ bearerToken WRITE setBearerToken FINAL)
+
+    /*!
+        \property QMcpServer::sessionCloseGracePeriodMs
+        This property holds the grace period, in milliseconds, before a disconnected
+        session is closed by backends that support reconnect windows, such as the
+        streamable HTTP transport.
+
+        If the selected backend does not expose this setting, reading returns 0 and
+        writing has no effect.
+    */
+    Q_PROPERTY(int sessionCloseGracePeriodMs READ sessionCloseGracePeriodMs WRITE setSessionCloseGracePeriodMs FINAL)
 public:
     /*!
         Returns a list of available backend implementations for the MCP server.
@@ -355,6 +366,12 @@ public:
     QString bearerToken() const;
 
     /*!
+        Returns the configured session close grace period in milliseconds, when
+        supported by the active backend.
+    */
+    int sessionCloseGracePeriodMs() const;
+
+    /*!
         Checks if a given protocol version is supported by the server.
         \param version Protocol version to check
         \return true if supported, false otherwise
@@ -404,6 +421,12 @@ public slots:
         For unsupported backends this call is ignored.
     */
     void setBearerToken(const QString &bearerToken);
+
+    /*!
+        Sets the session close grace period on the active backend, when supported.
+        For unsupported backends this call is ignored.
+    */
+    void setSessionCloseGracePeriodMs(int gracePeriodMs);
 
     /*!
         Starts the MCP server with the given arguments.

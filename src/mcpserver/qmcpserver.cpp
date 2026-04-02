@@ -650,6 +650,22 @@ void QMcpServer::setBearerToken(const QString &bearerToken)
     d->backend->setProperty("bearerToken", bearerToken);
 }
 
+int QMcpServer::sessionCloseGracePeriodMs() const
+{
+    if (!d->backend)
+        return 0;
+
+    return d->backend->property("sessionCloseGracePeriodMs").toInt();
+}
+
+void QMcpServer::setSessionCloseGracePeriodMs(int gracePeriodMs)
+{
+    if (!d->backend)
+        return;
+
+    d->backend->setProperty("sessionCloseGracePeriodMs", gracePeriodMs);
+}
+
 bool QMcpServer::isProtocolVersionSupported(QtMcp::ProtocolVersion version) const
 {
     return d->supportedVersions.contains(version);

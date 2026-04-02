@@ -15,12 +15,15 @@ class QMcpServerStreamableHttp : public QMcpServerBackendInterface
 {
     Q_OBJECT
     Q_PROPERTY(QString bearerToken READ bearerToken WRITE setBearerToken)
+    Q_PROPERTY(int sessionCloseGracePeriodMs READ sessionCloseGracePeriodMs WRITE setSessionCloseGracePeriodMs)
 public:
     explicit QMcpServerStreamableHttp(QObject *parent = nullptr);
     ~QMcpServerStreamableHttp() override;
 
     void setBearerToken(const QString &bearerToken);
     QString bearerToken() const;
+    void setSessionCloseGracePeriodMs(int gracePeriodMs);
+    int sessionCloseGracePeriodMs() const;
     QString remoteAddress(const QUuid &session) const override;
 
 public slots:

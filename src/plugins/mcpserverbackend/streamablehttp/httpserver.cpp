@@ -7,6 +7,7 @@
 #include <QtCore/QLoggingCategory>
 #include <QtCore/QDebug>
 #include <QtCore/QThread>
+#include <QtCore/QTimer>
 #include <optional>
 
 Q_LOGGING_CATEGORY(lcQMcpServerStreamableHttpTransport, "qt.mcpserver.plugins.backend.streamablehttp.transport")
@@ -19,6 +20,7 @@ namespace {
 
 constexpr auto kJsonContentType = "application/json";
 constexpr auto kSseContentType = "text/event-stream";
+constexpr int kDefaultSessionCloseGraceMs = 5000;
 
 QHttpHeaders jsonHeaders(const QUuid &session, std::optional<QtMcp::ProtocolVersion> protocolVersion = std::nullopt)
 {
@@ -129,9 +131,11 @@ public:
 
     QString endpointPath = "/mcp"_L1;
     QString bearerToken;
+    int sessionCloseGracePeriodMs = kDefaultSessionCloseGraceMs;
     QHash<QUuid, SessionState> sessions;
     QHash<QUuid, QHash<QString, PendingResponse>> pendingResponses;
     QHash<QUuid, PendingBatch> pendingBatches;
+    QHash<QUuid, QTimer *> sessionCloseTimers;
 
     static QString responseKey(const QJsonValue &id)
     {
@@ -175,12 +179,54 @@ public:
         const auto authorization = request.headers().value("Authorization"_L1);
         return authorization == "Bearer "_L1 + bearerToken;
     }
+
+    void cancelScheduledSessionClose(const QUuid &sessionId)
+    {
+        auto *timer = sessionCloseTimers.take(sessionId);
+        if (!timer)
+            return;
+        timer->stop();
+        timer->deleteLater();
+    }
 };
 
 StreamableHttpServer::StreamableHttpServer(QObject *parent)
     : QMcpAbstractHttpServer(parent)
     , d(new Private)
 {
+    connect(this, &QMcpAbstractHttpServer::sseConnectionClosed, this, [this](const QUuid &sseConnectionId) {
+        QUuid sessionId;
+        for (auto it = d->sessions.cbegin(), end = d->sessions.cend(); it != end; ++it) {
+            if (it.value().sseConnectionId != sseConnectionId)
+                continue;
+            sessionId = it.key();
+            break;
+        }
+
+        if (sessionId.isNull() || !d->sessions.contains(sessionId))
+            return;
+
+        auto &sessionState = d->sessions[sessionId];
+        sessionState.sseOpen = false;
+        sessionState.sseConnectionId = {};
+
+        d->cancelScheduledSessionClose(sessionId);
+
+        auto *timer = new QTimer(this);
+        timer->setSingleShot(true);
+        connect(timer, &QTimer::timeout, this, [this, sessionId]() {
+            d->sessionCloseTimers.remove(sessionId);
+            closeSession(sessionId);
+        });
+        d->sessionCloseTimers.insert(sessionId, timer);
+        timer->start(d->sessionCloseGracePeriodMs);
+
+        qCInfo(lcQMcpServerStreamableHttpTransport)
+                << "Scheduled MCP session close after SSE disconnect"
+                << sessionId
+                << "graceMs"
+                << d->sessionCloseGracePeriodMs;
+    });
 }
 
 StreamableHttpServer::~StreamableHttpServer() = default;
@@ -199,6 +245,16 @@ void StreamableHttpServer::setEndpointPath(QString endpointPath)
 QString StreamableHttpServer::endpointPath() const
 {
     return d->endpointPath;
+}
+
+void StreamableHttpServer::setSessionCloseGracePeriodMs(int gracePeriodMs)
+{
+    d->sessionCloseGracePeriodMs = qMax(0, gracePeriodMs);
+}
+
+int StreamableHttpServer::sessionCloseGracePeriodMs() const
+{
+    return d->sessionCloseGracePeriodMs;
 }
 
 void StreamableHttpServer::setBearerToken(QString bearerToken)
@@ -278,6 +334,7 @@ QByteArray StreamableHttpServer::get(const QNetworkRequest &request)
     }
 
     auto &sessionState = d->sessions[sessionId];
+    d->cancelScheduledSessionClose(sessionId);
     if (sessionState.sseOpen && !sessionState.sseConnectionId.isNull()
             && sessionState.sseConnectionId != sseId
             && hasSseConnection(sessionState.sseConnectionId)) {
@@ -620,6 +677,7 @@ void StreamableHttpServer::closeSession(const QUuid &session)
 
     qCInfo(lcQMcpServerStreamableHttpTransport)
             << "Closing MCP session" << session;
+    d->cancelScheduledSessionClose(session);
     if (d->pendingResponses.contains(session)) {
         const auto pendingBatches = d->pendingResponses.value(session);
         for (auto it = pendingBatches.cbegin(), end = pendingBatches.cend(); it != end; ++it)

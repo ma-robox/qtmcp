@@ -14,6 +14,8 @@ public:
 
     void setEndpointPath(QString endpointPath);
     QString endpointPath() const;
+    void setSessionCloseGracePeriodMs(int gracePeriodMs);
+    int sessionCloseGracePeriodMs() const;
     void setBearerToken(QString bearerToken);
     QString bearerToken() const;
     QString remoteAddress(const QUuid &session) const;
