@@ -6,6 +6,7 @@
 class HttpServer::Private{
 public:
     QSet<QUuid> sessions;
+    QHash<QUuid, QString> remoteAddresses;
 };
 
 
@@ -16,11 +17,17 @@ HttpServer::HttpServer(QObject *parent)
     connect(this, &QMcpAbstractHttpServer::sseConnectionClosed, this, [this](const QUuid &session) {
         if (!d->sessions.remove(session))
             return;
+        d->remoteAddresses.remove(session);
         emit sessionClosed(session);
     });
 }
 
 HttpServer::~HttpServer() = default;
+
+QString HttpServer::remoteAddress(const QUuid &session) const
+{
+    return d->remoteAddresses.value(session);
+}
 
 QByteArray HttpServer::getSse(const QNetworkRequest &request)
 {
@@ -29,6 +36,7 @@ QByteArray HttpServer::getSse(const QNetworkRequest &request)
         auto uuid = registerSseRequest(request);
         if (!uuid.isNull()) {
             d->sessions.insert(uuid);
+            d->remoteAddresses.insert(uuid, peerAddress(request));
             response += "event: endpoint\r\ndata: /messages/?session_id=";
             response += uuid.toByteArray(QUuid::WithoutBraces);
             response += "\r\n\r\n";
@@ -78,4 +86,5 @@ void HttpServer::shutdown()
     for (const auto &sessionId : sessions)
         closeSseConnection(sessionId);
     d->sessions.clear();
+    d->remoteAddresses.clear();
 }

@@ -38,6 +38,12 @@ void QMcpServerBackendInterface::request(const QUuid &session, const QJsonObject
     }
 }
 
+QString QMcpServerBackendInterface::remoteAddress(const QUuid &session) const
+{
+    Q_UNUSED(session);
+    return {};
+}
+
 void QMcpServerBackendInterface::shutdown()
 {
 }

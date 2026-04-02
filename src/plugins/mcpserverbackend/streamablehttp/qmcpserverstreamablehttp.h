@@ -21,6 +21,7 @@ public:
 
     void setBearerToken(const QString &bearerToken);
     QString bearerToken() const;
+    QString remoteAddress(const QUuid &session) const override;
 
 public slots:
     void start(const QString &server) override;

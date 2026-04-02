@@ -6,6 +6,7 @@
 
 #include <QtCore/QJsonObject>
 #include <QtCore/QObject>
+#include <QtCore/QString>
 #include <QtCore/QUuid>
 #include <QtMcpServer/qmcpserverglobal.h>
 
@@ -46,6 +47,13 @@ public:
         \param callback Optional callback to handle the response
     */
     void request(const QUuid &session, const QJsonObject &request, std::function<void(const QJsonObject &)> callback = nullptr);
+
+    /*!
+        Returns the remote peer IP address for the given session, when available.
+
+        The default implementation returns an empty string.
+    */
+    virtual QString remoteAddress(const QUuid &session) const;
 
 public slots:
     /*!

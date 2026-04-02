@@ -16,6 +16,7 @@ class QMcpServerSse : public QMcpServerBackendInterface
 public:
     explicit QMcpServerSse(QObject *parent = nullptr);
     ~QMcpServerSse() override;
+    QString remoteAddress(const QUuid &session) const override;
 
 public slots:
     void start(const QString &server) override;

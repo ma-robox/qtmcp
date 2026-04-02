@@ -97,6 +97,11 @@ QString QMcpServerStreamableHttp::bearerToken() const
     return d->httpServer.bearerToken();
 }
 
+QString QMcpServerStreamableHttp::remoteAddress(const QUuid &session) const
+{
+    return d->httpServer.remoteAddress(session);
+}
+
 void QMcpServerStreamableHttp::start(const QString &server)
 {
     const auto config = parseServerConfig(server);

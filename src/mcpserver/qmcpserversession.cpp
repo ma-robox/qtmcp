@@ -66,6 +66,7 @@ private:
 
 public:
     QUuid sessionId;
+    QString remoteAddress;
     bool initialized = false;
     QtMcp::ProtocolVersion protocolVersion = QtMcp::ProtocolVersion::Latest; // Default to latest version
     QList<QMcpResourceTemplate> resourceTemplates;
@@ -110,6 +111,16 @@ QMcpServerSession::~QMcpServerSession() = default;
 QUuid QMcpServerSession::sessionId() const
 {
     return d->sessionId;
+}
+
+QString QMcpServerSession::remoteAddress() const
+{
+    return d->remoteAddress;
+}
+
+void QMcpServerSession::setRemoteAddress(const QString &remoteAddress)
+{
+    d->remoteAddress = remoteAddress;
 }
 
 QtMcp::ProtocolVersion QMcpServerSession::protocolVersion() const

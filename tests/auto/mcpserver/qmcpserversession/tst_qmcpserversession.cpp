@@ -31,6 +31,7 @@ private slots:
 
     // Basic properties
     void testSessionId();
+    void testRemoteAddress();
     void testInitialization();
 
     // Protocol version handling
@@ -86,6 +87,14 @@ void tst_QMcpServerSession::cleanup()
 void tst_QMcpServerSession::testSessionId()
 {
     QCOMPARE(m_session->sessionId(), m_sessionId);
+}
+
+void tst_QMcpServerSession::testRemoteAddress()
+{
+    QVERIFY(m_session->remoteAddress().isEmpty());
+
+    m_session->setRemoteAddress(QStringLiteral("192.0.2.10"));
+    QCOMPARE(m_session->remoteAddress(), QStringLiteral("192.0.2.10"));
 }
 
 void tst_QMcpServerSession::testInitialization()

@@ -12,6 +12,7 @@ class HttpServer : public QMcpAbstractHttpServer
 public:
     explicit HttpServer(QObject *parent = nullptr);
     ~HttpServer() override;
+    QString remoteAddress(const QUuid &session) const;
 
     Q_INVOKABLE QByteArray getSse(const QNetworkRequest &request);
     Q_INVOKABLE QByteArray postMessages(const QNetworkRequest &request, const QByteArray &body);

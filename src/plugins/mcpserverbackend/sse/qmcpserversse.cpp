@@ -47,6 +47,11 @@ QMcpServerSse::QMcpServerSse(QObject *parent)
 
 QMcpServerSse::~QMcpServerSse() = default;
 
+QString QMcpServerSse::remoteAddress(const QUuid &session) const
+{
+    return d->httpServer.remoteAddress(session);
+}
+
 void QMcpServerSse::start(const QString &server)
 {
     QHostAddress address = QHostAddress::Any;

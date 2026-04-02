@@ -454,3 +454,19 @@ bool QMcpAbstractHttpServer::hasSseConnection(const QUuid &id) const
     return d->sessions.contains(id);
 }
 
+QString QMcpAbstractHttpServer::peerAddress(const QNetworkRequest &request) const
+{
+    const auto requestId = request.attribute(QNetworkRequest::User).toUuid();
+    if (requestId.isNull())
+        return {};
+
+    const auto sockets = d->dataMap.keys();
+    for (QTcpSocket *socket : sockets) {
+        const auto &parseData = d->dataMap.value(socket);
+        if (parseData.request.attribute(QNetworkRequest::User).toUuid() == requestId)
+            return socket->peerAddress().toString();
+    }
+
+    return {};
+}
+

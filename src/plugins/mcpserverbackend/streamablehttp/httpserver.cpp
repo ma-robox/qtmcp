@@ -108,6 +108,7 @@ class StreamableHttpServer::Private
 public:
     struct SessionState {
         QUuid sessionId;
+        QString remoteAddress;
         bool sseOpen = false;
         QUuid sseConnectionId;
         QList<QJsonObject> queuedMessages;
@@ -208,6 +209,11 @@ void StreamableHttpServer::setBearerToken(QString bearerToken)
 QString StreamableHttpServer::bearerToken() const
 {
     return d->bearerToken;
+}
+
+QString StreamableHttpServer::remoteAddress(const QUuid &session) const
+{
+    return d->sessions.value(session).remoteAddress;
 }
 
 QByteArray StreamableHttpServer::get(const QNetworkRequest &request)
@@ -399,9 +405,9 @@ QByteArray StreamableHttpServer::post(const QNetworkRequest &request, const QByt
         }
 
         sessionId = QUuid::createUuid();
-        d->sessions.insert(sessionId, { sessionId, false, {}, {}, std::nullopt });
+        d->sessions.insert(sessionId, { sessionId, peerAddress(request), false, {}, {}, std::nullopt });
         qCInfo(lcQMcpServerStreamableHttpTransport)
-                << "Created MCP session" << sessionId;
+                << "Created MCP session" << sessionId << "remoteAddress" << d->sessions.value(sessionId).remoteAddress;
         emit newSession(sessionId);
     } else if (!d->sessions.contains(sessionId)) {
         sendHttpResponse(deferredId,

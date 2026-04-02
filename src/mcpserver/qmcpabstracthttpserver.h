@@ -119,6 +119,13 @@ protected:
     */
     bool hasSseConnection(const QUuid &id) const;
 
+    /*!
+        Returns the remote peer IP address associated with an HTTP request.
+
+        If the request is unknown, returns an empty string.
+    */
+    QString peerAddress(const QNetworkRequest &request) const;
+
 private:
     class Private;
     QScopedPointer<Private> d;

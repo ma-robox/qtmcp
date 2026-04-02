@@ -16,6 +16,7 @@ public:
     QString endpointPath() const;
     void setBearerToken(QString bearerToken);
     QString bearerToken() const;
+    QString remoteAddress(const QUuid &session) const;
 
     Q_INVOKABLE QByteArray get(const QNetworkRequest &request);
     Q_INVOKABLE QByteArray post(const QNetworkRequest &request, const QByteArray &body);

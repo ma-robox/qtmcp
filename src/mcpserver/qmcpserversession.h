@@ -60,6 +60,14 @@ class Q_MCPSERVER_EXPORT QMcpServerSession : public QObject
         the initialization handshake.
     */
     Q_PROPERTY(bool initialized READ isInitialized WRITE setInitialized NOTIFY initializedChanged FINAL)
+    /*!
+        \property QMcpServerSession::remoteAddress
+        \brief Remote peer IP address associated with this session, when available.
+
+        This is transport-dependent and may be empty for backends that do not expose
+        peer addressing information.
+    */
+    Q_PROPERTY(QString remoteAddress READ remoteAddress WRITE setRemoteAddress FINAL)
 public:
     /*!
         Constructs a server session with the given ID and parent.
@@ -77,6 +85,16 @@ public:
         Returns the unique identifier for this session.
     */
     QUuid sessionId() const;
+
+    /*!
+        Returns the remote peer IP address for this session, when available.
+    */
+    QString remoteAddress() const;
+
+    /*!
+        Sets the remote peer IP address for this session.
+    */
+    void setRemoteAddress(const QString &remoteAddress);
 
     /*!
         Returns the protocol version negotiated with the client.

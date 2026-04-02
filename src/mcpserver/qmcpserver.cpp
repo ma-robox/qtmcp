@@ -89,6 +89,7 @@ QMcpServer::Private::Private(const QString &type, QMcpServer *parent)
     });
     connect(backend, &QMcpServerBackendInterface::newSessionStarted, q, [this](const QUuid &sessionId) {
         auto session = new QMcpServerSession(sessionId, q);
+        session->setRemoteAddress(backend->remoteAddress(sessionId));
 
         // register self as tool set if it inherits from QMcpServer
         if (q->metaObject() != &QMcpServer::staticMetaObject)
